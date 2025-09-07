@@ -294,13 +294,14 @@ def tools_menu():
                 print("❌ No webhook configured.")
                 continue
             try:
-                import pyautogui
                 from features.defense.attack_detector import _send_discord  # type: ignore
                 shot = None
+                # Try to capture a screenshot if pyautogui is available; else send text-only
                 try:
+                    import pyautogui  # type: ignore
                     shot = pyautogui.screenshot()
                 except Exception:
-                    pass
+                    shot = None
                 ok = _send_discord(url, "🔔 Test notification from Travian bot", shot)
                 print("✅ Sent" if ok else "❌ Failed to send")
             except Exception as e:

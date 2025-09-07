@@ -50,7 +50,20 @@ class TravianAPI:
             return self._raw_request(method, url, **kwargs)
 
         try:
-            self.session.request = _human_request  # type: ignore
+            self._human_request = _human_request  # type: ignore[attr-defined]
+            self.session.request = self._human_request  # type: ignore
+        except Exception:
+            pass
+
+    def set_humanizer(self, enabled: bool) -> None:
+        """Enable/disable the humanizer wrapper around session.request at runtime."""
+        try:
+            if enabled:
+                if hasattr(self, "_human_request"):
+                    self.session.request = getattr(self, "_human_request")  # type: ignore
+            else:
+                if hasattr(self, "_raw_request"):
+                    self.session.request = getattr(self, "_raw_request")  # type: ignore
         except Exception:
             pass
 

@@ -51,6 +51,19 @@ Automated farming, oasis raiding, and hero operations for Travian Legends with a
 - `bash run.sh` (recommended) or `python launcher.py`
 - Preflight shows masked email and server index; login is non‑interactive via YAML.
 
+## CLI
+
+Run headless utilities without the interactive launcher.
+
+- List villages available for scanning:
+  - `cd API_based_automations/travian_bot && . venv/bin/activate`
+  - `python cli.py scan`
+
+- Start a fast map scan (humanizer disabled) for village index 0 with radius 25:
+  - `python cli.py scan --village 0 --radius 25 --fast`
+
+The scan writes to `database/full_map_scans/(x_y)/full_map_scan_*.json` and shows a progress bar.
+
 ## Usage
 
 The bot provides several operation modes through an interactive launcher:
@@ -133,6 +146,28 @@ Per‑cycle report (printed by the launcher):
 - Recent learning multiplier changes
 Raw metrics are stored in `database/metrics.json` and counters reset each cycle.
 
+## Attack Detector (OCR → Discord)
+
+Optional screen monitor that detects “incoming attack” text and posts a Discord message (with screenshot when possible).
+
+- Enable via launcher Tools menu (option 12):
+  - Toggle Attack Detector ON/OFF
+  - Set Discord Webhook URL
+  - Send test notification (with screenshot when GUI available)
+
+- Configure in `config.yaml`:
+  - `ATTACK_DETECTOR_ENABLE: true|false`
+  - `ATTACK_DETECTOR_DISCORD_WEBHOOK: "https://discord.com/api/webhooks/..."`
+  - `ATTACK_DETECTOR_INTERVAL_BASE`, `ATTACK_DETECTOR_INTERVAL_JITTER`
+  - `ATTACK_DETECTOR_COOLDOWN_SEC` (min. gap between notifications)
+  - `ATTACK_DETECTOR_OCR_LANGS: ["en", ...]`, `ATTACK_DETECTOR_GPU: false`
+  - `ATTACK_DETECTOR_SEND_SCREENSHOT: true|false`
+  - `ATTACK_DETECTOR_USE_HOTKEYS: false` and `ATTACK_DETECTOR_REFRESH_COMBO: "f5"|"ctrl+r"|"command+r"`
+
+Notes:
+- Screenshots require a desktop/GUI. In headless environments, the detector sends text-only messages.
+- Dependencies are in `requirements.txt` (pyautogui, Pillow, easyocr). Install inside the venv when you plan to use the detector.
+
 ## Data Paths
 
 - Farm lists: `database/farm_lists/`
@@ -143,6 +178,18 @@ Raw metrics are stored in `database/metrics.json` and counters reset each cycle.
 - Learning store: `database/learning/oasis_stats.json`
 - Learning pendings: `database/learning/pending.json`
 - Metrics: `database/metrics.json`
+
+## Crontab Examples
+
+Run the bot or CLI periodically via cron (adjust absolute paths and indices as needed).
+
+- Full‑auto loop every hour starting at minute 2:
+  - `2 * * * * cd /absolute/path/to/API_based_automations/travian_bot && /bin/bash -lc '. venv/bin/activate && python launcher.py' >> logs/cron.log 2>&1`
+
+- Fast map scan of village index 0 every 6 hours:
+  - `5 */6 * * * cd /absolute/path/to/API_based_automations/travian_bot && /bin/bash -lc '. venv/bin/activate && python cli.py scan --village 0 --radius 25 --fast' >> logs/scan_cron.log 2>&1`
+
+Tip: use different schedules for heavy scans vs. regular farming to spread load and remain stealthy.
 
 ## Troubleshooting
 

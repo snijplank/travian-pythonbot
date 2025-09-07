@@ -1,84 +1,51 @@
-# --- Travian Bot config.yaml ---
-# Enige bron van configuratie (geen .env overrides)
-
-# === Cadans & Server ===
-# Wachttijd per cycle en jitter (in minuten)
 WAIT_BETWEEN_CYCLES_MINUTES: 10
 JITTER_MINUTES: 10
-
-
-# === Daily limiter ===
-# Activeer daglimiet en verdeel in blokken
-ENABLE_CYCLE_LIMITER: false         # zet op true om limiter te activeren
-DAILY_MAX_RUNTIME_MINUTES: 600     # 10 uur totaal per dag
-DAILY_BLOCKS: 3                    # verdeel runtime over 3 blokken
-
-# === Logging ===
+ENABLE_CYCLE_LIMITER: false
+DAILY_MAX_RUNTIME_MINUTES: 600
+DAILY_BLOCKS: 3
 LOG_LEVEL: INFO
 LOG_DIR: logs
-
-# === Humanizer (menselijk gedrag) ===
-# Korte denktijd tussen requests en af en toe langere pauzes
-HUMAN_MIN_DELAY: 0.8       # sec
-HUMAN_MAX_DELAY: 2.8       # sec
-HUMAN_LONG_PAUSE_EVERY: 6  # na N requests
-HUMAN_LONG_PAUSE_MIN: 4.0  # sec
-HUMAN_LONG_PAUSE_MAX: 7.5  # sec
-
-# === Operatie-jitter (tussen hoofdtaken) ===
-# Korte pauze voor/na grote stappen (farm lists, raid planner)
+HUMAN_MIN_DELAY: 0.8
+HUMAN_MAX_DELAY: 2.8
+HUMAN_LONG_PAUSE_EVERY: 6
+HUMAN_LONG_PAUSE_MIN: 4.0
+HUMAN_LONG_PAUSE_MAX: 7.5
 OP_JITTER_MIN_SEC: 0.7
 OP_JITTER_MAX_SEC: 2.5
-
-# === Map view & Farm list selectie ===
-# Af en toe een neutrale pagina openen (dorf1/dorf2) voor acties
 MAPVIEW_PRE_ACTION_PROB: 0.35
 MAPVIEW_FARM_LIST_PROB: 0.25
-# Random subset van farm lists per dorp
 FARM_LIST_SUBSET_MIN: 1
 FARM_LIST_SUBSET_MAX: 3
-
-# === Attack detector (OCR → Discord) ===
 ATTACK_DETECTOR_ENABLE: true
-ATTACK_DETECTOR_DISCORD_WEBHOOK: "https://discord.com/api/webhooks/1414390047721127946/ff-OZaV763t5HpeuNNK-knHAn6xv1U6dT_WgrWimh_0mFACspXr3-cuT82npPBEWl2_R"
+ATTACK_DETECTOR_DISCORD_WEBHOOK: https://discord.com/api/webhooks/1414390047721127946/ff-OZaV763t5HpeuNNK-knHAn6xv1U6dT_WgrWimh_0mFACspXr3-cuT82npPBEWl2_R
 ATTACK_DETECTOR_INTERVAL_BASE: 2.0
 ATTACK_DETECTOR_INTERVAL_JITTER: 6.0
 ATTACK_DETECTOR_COOLDOWN_SEC: 3600
-ATTACK_DETECTOR_OCR_LANGS: ["en"]
+ATTACK_DETECTOR_OCR_LANGS:
+- en
 ATTACK_DETECTOR_GPU: false
 ATTACK_DETECTOR_SEND_SCREENSHOT: true
 ATTACK_DETECTOR_USE_HOTKEYS: false
-ATTACK_DETECTOR_REFRESH_COMBO: ""   # e.g., f5 or ctrl+r or command+r
-
-# === Raiding opties ===
-# Sla farm lists over in de eerste cycle (alleen full-auto)
+ATTACK_DETECTOR_REFRESH_COMBO: ''
 SKIP_FARM_LISTS_FIRST_RUN: false
-
-# Voorkeursvolgorde voor escort-eenheden (t-slots)
 ESCORT_UNIT_PRIORITY:
-  - t5
-  - t3
-  - t1
-  - t2
-  - t4
-  - t6
-  - t7
-  - t8
-  - t9
-  - t10
-
-# === Learning loop (dynamische escort-aanpassingen) ===
+- t5
+- t3
+- t1
+- t2
+- t4
+- t6
+- t7
+- t8
+- t9
+- t10
 LEARNING_MIN_MUL: 0.8
 LEARNING_MAX_MUL: 2.5
-LEARNING_LOSS_THRESHOLD_LOW: 0.20
-LEARNING_LOSS_THRESHOLD_HIGH: 0.50
+LEARNING_LOSS_THRESHOLD_LOW: 0.2
+LEARNING_LOSS_THRESHOLD_HIGH: 0.5
 LEARNING_STEP_UP_ON_LOST: 0.25
-LEARNING_STEP_UP_ON_HIGH_LOSS: 0.10
-LEARNING_STEP_DOWN_ON_LOW_LOSS: 0.10
-
-# === Credentials ===
-# Laat leeg om tijdens runtime gevraagd te worden (indien interactive)
-TRAVIAN_EMAIL: "michaelsnijder@hotmail.com"
-TRAVIAN_PASSWORD: "Sjaaktrekhaak24"
-# Index van de wereld in de lobby (0 = eerste)
+LEARNING_STEP_UP_ON_HIGH_LOSS: 0.1
+LEARNING_STEP_DOWN_ON_LOW_LOSS: 0.1
+TRAVIAN_EMAIL: michaelsnijder@hotmail.com
+TRAVIAN_PASSWORD: Sjaaktrekhaak24
 SERVER_SELECTION: 0
