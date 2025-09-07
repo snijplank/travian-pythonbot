@@ -75,3 +75,40 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
 3) Hero ATK caching (TTL, fallback)
 4) Dagrapport writer (samenvatting + top redenen)
 5) Unit stats uitbreiden (speed/cargo) in unit_catalog en gebruiken bij planner
+
+---
+
+## ✅ Acceptance Criteria — Next Deliverables
+
+1) Escort Planner 2.0
+- Mix: Planner kiest automatisch multi-unit samenstelling (t‑slots) bij tekort aan voorkeursunit.
+- Safety: Dier‑type weging (bv. tijger > beer > wolf > zwijn > rat/spin) beïnvloedt benodigde escort.
+- Config: Safety‑factoren en fallback‑order instelbaar in `config.yaml`.
+- Correctheid: Geen negatieve aantallen; clamp op beschikbaarheid; skip met duidelijke reden bij structureel tekort.
+- Logs: Toon gekozen mix, basis vs adjusted aantallen, reden van keuzes (fallback/safety).
+- Tests: Unit test met 3 scenario’s (genoeg voorkeursunit, gemengd tekort, zware dieren) slaagt.
+
+2) Cooldown per Oase + Target Scoring
+- Cooldown: Na “lost” of >X% verlies zet systeem een per‑oase cooldown (persist in state) en skipt binnen window.
+- Scoring: Score combineert afstand, power, recent resultaat, laatste raid‑tijd; gewichten in `config.yaml`.
+- Selectie: Planner sorteert oases op score en logt top 5 met componenten.
+- Persist: Cooldowns en laatste score/win/loss worden opgeslagen (JSON/SQLite).
+- Tests: Unit test voor cooldown toepassen + scoring volgorde met vaste inputs.
+
+3) CLI & TTY UX
+- CLI: `python launcher.py --full-auto --server N --headless` start zonder menu; flags overschrijven YAML waar logisch.
+- TTY: Simpele editor voor farm lists/raid plan toggles (enable/disable), met veilige persist.
+- Docs: README sectie “CLI & TTY” met voorbeelden.
+- Smoke: `--full-auto` import/run smoke test werkt in CI (headless).
+
+4) Notificaties (Telegram/Discord)
+- Basis: Meldingen voor cycle done (samenvatting), errors (trace), hero dood/missie.
+- Config: In/uit via `config.yaml` + token/webhook per kanaal.
+- Throttle: Minimaal interval tussen meldingen om spam te voorkomen.
+- Tests: Droge run stuurt mock call; geen secrets in logs.
+
+5) JSON Logging + Unit Tests
+- JSON: Toggle `LOG_JSON` levert gestructureerde events met `ts,type,reason,result,latency`.
+- Schema: Documenteer minimaal event‑types (raid_sent, raid_skip, hero_status, error, http_call).
+- CI: GitHub Actions draait lint + unit tests (mapping/parsers/token‑parser) bij push.
+- Fixtures: Kleine HTML fixtures voor parser‑tests (token/confirm, troops table).
