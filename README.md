@@ -1,11 +1,6 @@
 # Travian Legends Bot
 
-🚀 **Level Up Your Travian Game!** 🏰
-⚔️ **Dominate the Map with Advanced Automation** ⚔️
-
-![Farm List Management](docs/images/farm_list_config.png)
-
-An automated bot for Travian Legends that handles farming and oasis raiding operations.
+Automated farming, oasis raiding, and hero operations for Travian Legends with a configurable learning loop and per‑cycle reporting.
 
 ## Features
 
@@ -38,28 +33,23 @@ An automated bot for Travian Legends that handles farming and oasis raiding oper
   - Multi-village support
   - Continuous raiding with 50-minute intervals
 
-## Setup
+## Quick Start
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/travian_legends_bots.git
-cd travian_legends_bots
-```
+1) Create venv and install deps
+- `cd API_based_automations/travian_bot`
+- `python -m venv venv`
+- `source venv/bin/activate`
+- `pip install -r requirements.txt`
 
-2. Create a virtual environment and install dependencies:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+2) Configure
+- Edit `API_based_automations/travian_bot/config.yaml` and set at least:
+  - `TRAVIAN_EMAIL`, `TRAVIAN_PASSWORD`
+  - `SERVER_SELECTION` (world index as shown in lobby)
+  - Optional cadence/learning parameters (see below)
 
-3. Run the launcher:
-```bash
-cd API_based_automations/travian_bot
-python launcher.py
-```
-
-The bot will guide you through the identity setup process, creating all necessary configuration files automatically.
+3) Run
+- `bash run.sh` (recommended) or `python launcher.py`
+- Preflight shows masked email and server index; login is non‑interactive via YAML.
 
 ## Usage
 
@@ -105,61 +95,62 @@ To set up full automation (Option 8), follow these steps in order:
      - Repeat every 50 minutes
      - Handle errors and session timeouts
 
-## Configuration
+## Configuration (YAML)
 
-All runtime configuration is read from `API_based_automations/travian_bot/config.yaml` (single source of truth). `.env` is no longer used for overrides.
+All runtime configuration is read from `API_based_automations/travian_bot/config.yaml` (single source of truth). `.env` is not used.
 
-- Farm list configurations are stored in `database/farm_lists/`
-- Raid settings are stored in `database/raid_plans/`
-- Village and player information is stored in `database/identity.json`
-- Map scan data is stored in `database/full_map_scans/`
-- Unoccupied oases data is stored in `database/unoccupied_oases/`
+- Core cadence
+  - `WAIT_BETWEEN_CYCLES_MINUTES`: minutes between cycles (default 10)
+  - `JITTER_MINUTES`: random jitter (default 10)
+  - `SERVER_SELECTION`: index of your world (0‑based)
+- Daily limiter
+  - `ENABLE_CYCLE_LIMITER`: `true/false`
+  - `DAILY_MAX_RUNTIME_MINUTES`, `DAILY_BLOCKS`
+- Logging
+  - `LOG_LEVEL`: `INFO`|`DEBUG`|...
+  - `LOG_DIR`: directory for logs
+- Raid setup
+  - `SKIP_FARM_LISTS_FIRST_RUN`: `true/false`
+  - `ESCORT_UNIT_PRIORITY`: preferred `tX` order
+- Learning loop (escort adjustments)
+  - `LEARNING_MIN_MUL`, `LEARNING_MAX_MUL`
+  - `LEARNING_LOSS_THRESHOLD_LOW`, `LEARNING_LOSS_THRESHOLD_HIGH`
+  - `LEARNING_STEP_UP_ON_LOST`
+  - `LEARNING_STEP_UP_ON_HIGH_LOSS`
+  - `LEARNING_STEP_DOWN_ON_LOW_LOSS`
+- Credentials
+  - `TRAVIAN_EMAIL`, `TRAVIAN_PASSWORD`
 
-## Safety Features
+## Learning Loop & Reporting
 
-- Distance-based raid targeting
-- Animal presence detection
-- Automatic session recovery
-- Random timing variations
-- Safe shutdown at specified time
-- Error handling and retry mechanisms
-- Multi-village coordination
+- After a successful raid the bot writes a pending to `database/learning/pending.json`.
+- The Report Checker (daemon) waits ~5 minutes, finds the latest report, and nudges the multiplier up/down based on result/loss%.
+- Next raids to the same oasis apply the updated multiplier to escort sizes.
 
-## Documentation
+Per‑cycle report (printed by the launcher):
+- Raids sent/skipped + skip reasons summary
+- Hero status (present/health/level)
+- Recent learning multiplier changes
+Raw metrics are stored in `database/metrics.json` and counters reset each cycle.
 
-### Visual Guides
+## Data Paths
 
-#### Main Interface
-![Launcher Menu](docs/images/launcher_menu.png.png)
+- Farm lists: `database/farm_lists/`
+- Raid plans: `database/raid_plans/`
+- Identity: `database/identity.json`
+- Map scans: `database/full_map_scans/`
+- Unoccupied oases: `database/unoccupied_oases/`
+- Learning store: `database/learning/oasis_stats.json`
+- Learning pendings: `database/learning/pending.json`
+- Metrics: `database/metrics.json`
 
-*The main launcher interface showing all available options*
+## Troubleshooting
 
-#### Farm List Management
-![Farm List Configuration](docs/images/farm_list_config.png)
-
-*Configure which farm lists to run for each village*
-
-![Farm List Launch](docs/images/farm_list_launch.png)
-
-*Launch farm lists with automatic timing and recovery*
-
-#### Map Analysis & Scanning
-![Map Scanning](docs/images/raid_plan_setup.png)
-
-*Map scanning and analysis features:*
-- Scan any radius around your villages
-- Multiple analysis modules (oases, distances, etc.)
-- Save data for offline analysis
-- Extensible for future features (crop fields, villages, etc.)
-
-![Oasis Analysis](docs/images/oasis_raid_launch.png)
-
-*Oasis analysis and targeting based on scan data*
-
-#### Operation Status
-![Cycle Complete](docs/images/cycle_complete.png)
-
-*Successful completion of a raid cycle with automatic timing for next run*
+- Missing `bs4` → activate venv: `source venv/bin/activate`; `pip install -r requirements.txt`.
+- “Missing credentials” → set `TRAVIAN_EMAIL` and `TRAVIAN_PASSWORD` in YAML.
+- 4xx on login → recheck email/password and `SERVER_SELECTION`; review additional error text.
+- No troops table → UI/language/layout can vary; retry.
+- No learning changes yet → wait ≥5 minutes after raids; checker runs periodically.
 
 ## Contributing
 

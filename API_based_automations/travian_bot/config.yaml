@@ -1,23 +1,48 @@
 # --- Travian Bot config.yaml ---
 # Enige bron van configuratie (geen .env overrides)
 
-# Cadans
+# === Cadans & Server ===
+# Wachttijd per cycle en jitter (in minuten)
 WAIT_BETWEEN_CYCLES_MINUTES: 10
 JITTER_MINUTES: 10
-SERVER_SELECTION: 0
 
-# Daily limiter
+
+# === Daily limiter ===
+# Activeer daglimiet en verdeel in blokken
 ENABLE_CYCLE_LIMITER: false         # zet op true om limiter te activeren
-DAILY_MAX_RUNTIME_MINUTES: 600     # 10 uur
+DAILY_MAX_RUNTIME_MINUTES: 600     # 10 uur totaal per dag
 DAILY_BLOCKS: 3                    # verdeel runtime over 3 blokken
 
-# Logging (optioneel, nog niet gebruikt in launcher)
+# === Logging ===
 LOG_LEVEL: INFO
 LOG_DIR: logs
 
+# === Humanizer (menselijk gedrag) ===
+# Korte denktijd tussen requests en af en toe langere pauzes
+HUMAN_MIN_DELAY: 0.8       # sec
+HUMAN_MAX_DELAY: 2.8       # sec
+HUMAN_LONG_PAUSE_EVERY: 6  # na N requests
+HUMAN_LONG_PAUSE_MIN: 4.0  # sec
+HUMAN_LONG_PAUSE_MAX: 7.5  # sec
 
+# === Operatie-jitter (tussen hoofdtaken) ===
+# Korte pauze voor/na grote stappen (farm lists, raid planner)
+OP_JITTER_MIN_SEC: 0.7
+OP_JITTER_MAX_SEC: 2.5
+
+# === Map view & Farm list selectie ===
+# Af en toe een neutrale pagina openen (dorf1/dorf2) voor acties
+MAPVIEW_PRE_ACTION_PROB: 0.35
+MAPVIEW_FARM_LIST_PROB: 0.25
+# Random subset van farm lists per dorp
+FARM_LIST_SUBSET_MIN: 1
+FARM_LIST_SUBSET_MAX: 3
+
+# === Raiding opties ===
+# Sla farm lists over in de eerste cycle (alleen full-auto)
 SKIP_FARM_LISTS_FIRST_RUN: false
 
+# Voorkeursvolgorde voor escort-eenheden (t-slots)
 ESCORT_UNIT_PRIORITY:
   - t5
   - t3
@@ -30,7 +55,7 @@ ESCORT_UNIT_PRIORITY:
   - t9
   - t10
 
-# Learning loop (dynamische escort-aanpassingen)
+# === Learning loop (dynamische escort-aanpassingen) ===
 LEARNING_MIN_MUL: 0.8
 LEARNING_MAX_MUL: 2.5
 LEARNING_LOSS_THRESHOLD_LOW: 0.20
@@ -39,6 +64,9 @@ LEARNING_STEP_UP_ON_LOST: 0.25
 LEARNING_STEP_UP_ON_HIGH_LOSS: 0.10
 LEARNING_STEP_DOWN_ON_LOW_LOSS: 0.10
 
-# Credentials (leave empty to be prompted interactively)
+# === Credentials ===
+# Laat leeg om tijdens runtime gevraagd te worden (indien interactive)
 TRAVIAN_EMAIL: "michaelsnijder@hotmail.com"
 TRAVIAN_PASSWORD: "Sjaaktrekhaak24"
+# Index van de wereld in de lobby (0 = eerste)
+SERVER_SELECTION: 0

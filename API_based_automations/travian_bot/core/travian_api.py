@@ -2,7 +2,7 @@ import requests
 import re
 from bs4 import BeautifulSoup
 from analysis.animal_to_power_mapping import get_animal_power
-from core.unit_catalog import resolve_unit_base_name
+from core.unit_catalog import resolve_unit_base_name, resolve_label_u
 from typing import Optional
 import logging
 from pathlib import Path
@@ -12,6 +12,47 @@ class TravianAPI:
     def __init__(self, session: requests.Session, server_url: str):
         self.session = session
         self.server_url = server_url
+        # Humanizer state
+        try:
+            from config.config import settings as _cfg
+            self._human_min = max(0.0, float(getattr(_cfg, 'HUMAN_MIN_DELAY', 0.6)))
+            self._human_max = max(self._human_min, float(getattr(_cfg, 'HUMAN_MAX_DELAY', 2.2)))
+            self._human_every = max(1, int(getattr(_cfg, 'HUMAN_LONG_PAUSE_EVERY', 7)))
+            self._human_long_min = max(0.0, float(getattr(_cfg, 'HUMAN_LONG_PAUSE_MIN', 3.0)))
+            self._human_long_max = max(self._human_long_min, float(getattr(_cfg, 'HUMAN_LONG_PAUSE_MAX', 6.0)))
+            self._human_long_prob = max(0.0, min(1.0, float(getattr(_cfg, 'HUMAN_LONG_PAUSE_PROB', 0.12))))
+        except Exception:
+            self._human_min, self._human_max = 0.6, 2.2
+            self._human_every, self._human_long_min, self._human_long_max = 7, 3.0, 6.0
+            self._human_long_prob = 0.12
+        self._req_counter = 0
+        # Set polite default headers if missing
+        try:
+            self.session.headers.setdefault('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8')
+            self.session.headers.setdefault('Accept-Language', 'nl-NL,nl;q=0.9,en-US;q=0.8,en;q=0.7')
+            self.session.headers.setdefault('Connection', 'keep-alive')
+        except Exception:
+            pass
+        # Wrap session.request to inject human-like delays globally
+        self._raw_request = self.session.request
+
+        def _human_request(method, url, **kwargs):
+            import random, time as _t
+            try:
+                self._req_counter += 1
+                # Short think time before each request
+                _t.sleep(random.uniform(self._human_min, self._human_max))
+                # Occasionally take a longer pause
+                if self._req_counter % self._human_every == 0 or random.random() < self._human_long_prob:
+                    _t.sleep(random.uniform(self._human_long_min, self._human_long_max))
+            except Exception:
+                pass
+            return self._raw_request(method, url, **kwargs)
+
+        try:
+            self.session.request = _human_request  # type: ignore
+        except Exception:
+            pass
 
     def get_player_info(self):
         payload = {
@@ -496,10 +537,24 @@ class TravianAPI:
         try:
             pinfo = self.get_player_info() or {}
             current_vid = (pinfo or {}).get("currentVillageId")
-            for v in (pinfo or {}).get("villages", []) or []:
-                if v.get("id") == current_vid:
-                    tribe_id = int(v.get("tribeId")) if v.get("tribeId") is not None else None
-                    break
+            villages = (pinfo or {}).get("villages", []) or []
+            # Prefer current village match with tolerant id comparison
+            for v in villages:
+                try:
+                    if str(v.get("id")) == str(current_vid):
+                        tv = v.get("tribeId")
+                        if tv is not None:
+                            tribe_id = int(tv)
+                        break
+                except Exception:
+                    continue
+            # Fallback: take first available tribeId
+            if tribe_id is None:
+                for v in villages:
+                    tv = v.get("tribeId")
+                    if tv is not None:
+                        tribe_id = int(tv)
+                        break
         except Exception:
             tribe_id = None
 
@@ -524,9 +579,20 @@ class TravianAPI:
                         try:
                             count = int(num.text.strip())
                             troops[f"u{code_num}"] = count
-                            # Pretty name if possible
-                            name = _resolve_unit_name(tribe_id, f"u{code_num}")
-                            label = f"{name} (u{code_num})" if name != f"u{code_num}" else f"u{code_num}"
+                            # Pretty name with tribe fallback based on code range
+                            eff_tribe = tribe_id
+                            if eff_tribe is None:
+                                if 1 <= code_num <= 10:
+                                    eff_tribe = 1
+                                elif 11 <= code_num <= 20:
+                                    eff_tribe = 2
+                                elif 21 <= code_num <= 30:
+                                    eff_tribe = 3
+                                elif 41 <= code_num <= 50:
+                                    eff_tribe = 5
+                                elif 61 <= code_num <= 70:
+                                    eff_tribe = 4
+                            label = resolve_label_u(eff_tribe, f"u{code_num}") if eff_tribe else f"u{code_num}"
                             print(f"   🛡️ {label}: {count:,} units")
                         except ValueError:
                             continue

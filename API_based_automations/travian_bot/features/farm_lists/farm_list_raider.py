@@ -31,10 +31,23 @@ def run_farm_list_raids(api, server_url, village_id):
         return
 
     # Get enabled farm lists
-    enabled_lists = [fl for fl in village_config["farm_lists"] if fl["enabled"]]
+    enabled_lists = [fl for fl in village_config["farm_lists"] if fl.get("enabled")]
     if not enabled_lists:
         logging.info(f"ℹ️ No enabled farm lists for village {village_config['name']}")
         return
+
+    # Randomize subset selection to avoid fixed patterns
+    try:
+        from config.config import settings as _cfg
+        import random as _rnd
+        _rnd.shuffle(enabled_lists)
+        mn = max(1, int(getattr(_cfg, 'FARM_LIST_SUBSET_MIN', 1)))
+        mx = max(mn, int(getattr(_cfg, 'FARM_LIST_SUBSET_MAX', len(enabled_lists))))
+        k = min(len(enabled_lists), _rnd.randint(mn, mx))
+        enabled_lists = enabled_lists[:k]
+        logging.info(f"[humanizer] Selecting {k} farm list(s) this cycle for {village_config['name']}")
+    except Exception:
+        pass
 
     logging.info(f"\n{'='*40}")
     logging.info(f"🏰 Processing farm lists for {village_config['name']}")
@@ -46,6 +59,17 @@ def run_farm_list_raids(api, server_url, village_id):
         logging.info(f"   🎯 Slots: {farm_list['slots']}")
         logging.info(f"   ⏳ Preparing to launch...")
         
+        # Optional neutral map view before each launch
+        try:
+            from config.config import settings as _cfg
+            import random as _rnd, time as _t
+            if _rnd.random() < float(getattr(_cfg, 'MAPVIEW_FARM_LIST_PROB', 0.25)):
+                page = _rnd.choice((1, 2))
+                api.session.get(f"{api.server_url}/dorf{page}.php")
+                _t.sleep(_rnd.uniform(0.4, 1.2))
+        except Exception:
+            pass
+
         # Launch the farm list
         success = api.send_farm_list(farm_list["id"])
         

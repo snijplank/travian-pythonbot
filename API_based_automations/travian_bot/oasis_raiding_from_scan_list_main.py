@@ -8,6 +8,7 @@ from identity_handling.login import login
 from identity_handling.identity_helper import load_villages_from_identity
 from core.travian_api import TravianAPI
 from analysis.number_to_unit_mapping import get_unit_name
+from core.unit_catalog import resolve_label_u
 from core.unit_catalog import resolve_label_t
 from core.database_helpers import load_latest_unoccupied_oases
 from core.database_raid_config import load_saved_raid_plan, save_raid_plan
@@ -139,7 +140,16 @@ def run_raid_planner(
 
     # Determine which villages to process
     if multi_village:
-        villages_to_process = list(enumerate(villages))
+        # Optionally shuffle village order to avoid fixed patterns
+        try:
+            from config.config import settings as _cfg
+            import random as _rnd
+            vlist = list(villages)
+            if bool(getattr(_cfg, 'SHUFFLE_VILLAGE_ORDER', True)):
+                _rnd.shuffle(vlist)
+            villages_to_process = list(enumerate(vlist))
+        except Exception:
+            villages_to_process = list(enumerate(villages))
         logging.info(f"Running in multi-village mode. Will process {len(villages)} villages.")
     else:
         village_index = 0
@@ -171,14 +181,29 @@ def run_raid_planner(
 
         logging.info("Current troops in village:")
         for unit_code, amount in troops_info.items():
-            unit_name = resolve_unit_name(tribe_id, unit_code)
-            logging.info(f"    {unit_name}: {amount} units")
+            try:
+                label = resolve_label_u(tribe_id, unit_code)
+            except Exception:
+                label = unit_code
+            logging.info(f"    {label}: {amount} units")
 
         # Run farm lists only if explicitly requested
         if run_farm_lists:
             logging.info("\nRunning farm lists...")
-            from features.farm_lists.farm_list_raider import run_farm_list_raids
-            run_farm_list_raids(api, server_url, village_id)
+            # Small human-like jitter before launching farm lists + random skip
+            try:
+                import random, time as _t
+                from config.config import settings as _cfg
+                _t.sleep(random.uniform(float(getattr(_cfg, 'OP_JITTER_MIN_SEC', 0.5)), float(getattr(_cfg, 'OP_JITTER_MAX_SEC', 2.0))))
+                skip_prob = float(getattr(_cfg, 'FARM_LIST_RANDOM_SKIP_PROB', 0.0))
+                if skip_prob > 0 and random.random() < skip_prob:
+                    logging.info("[humanizer] Skipping farm lists this cycle for this village.")
+                    run_farm_lists = False
+            except Exception:
+                pass
+            if run_farm_lists:
+                from features.farm_lists.farm_list_raider import run_farm_list_raids
+                run_farm_list_raids(api, server_url, village_id)
         else:
             logging.info("\nSkipping farm lists as requested.")
 

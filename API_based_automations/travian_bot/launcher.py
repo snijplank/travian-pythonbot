@@ -480,6 +480,21 @@ def main():
                 cycle_start_ts = time.time()
 
                 # --- Place your farming/oasis logic here (existing repo code) ---
+                # Small human-like pause before starting planner
+                try:
+                    import random, time as _t
+                    from config.config import settings as _cfg
+                    _t.sleep(random.uniform(float(getattr(_cfg, 'OP_JITTER_MIN_SEC', 0.5)), float(getattr(_cfg, 'OP_JITTER_MAX_SEC', 2.0))))
+                    # Occasional neutral map view before heavy actions
+                    if random.random() < float(getattr(_cfg, 'MAPVIEW_PRE_ACTION_PROB', 0.35)):
+                        try:
+                            page = random.choice((1, 2))
+                            _ = api.session.get(f"{api.server_url}/dorf{page}.php")
+                            _t.sleep(random.uniform(0.4, 1.2))
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
                 print("[Main] Running raid planner...", flush=True)
                 if first_cycle and skip_farm_lists_first_run:
                     # Skip farm lists only on the first run if requested
@@ -566,6 +581,15 @@ def main():
                 # === Cycle wait ===
                 jitter = random.randint(-settings.JITTER_MINUTES, settings.JITTER_MINUTES)
                 total_wait_minutes = settings.WAIT_BETWEEN_CYCLES_MINUTES + jitter
+                # Occasional coffee break for human-like idle time
+                try:
+                    import random as _rnd
+                    if _rnd.random() < float(getattr(settings, 'OP_COFFEE_BREAK_PROB', 0.1)):
+                        extra = _rnd.randint(int(getattr(settings, 'OP_COFFEE_BREAK_MIN_MINUTES', 2)), int(getattr(settings, 'OP_COFFEE_BREAK_MAX_MINUTES', 6)))
+                        total_wait_minutes += extra
+                        print(f"[Humanizer] ☕ Taking a short break (+{extra} min)")
+                except Exception:
+                    pass
                 print(f"[Main] Cycle complete. Waiting {total_wait_minutes} minutes...", flush=True)
                 _log_info(f"Cycle complete. Waiting {total_wait_minutes} minutes.")
                 time.sleep(max(0, total_wait_minutes) * 60)

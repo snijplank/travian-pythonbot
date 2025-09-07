@@ -88,6 +88,31 @@ class Settings:
     TRAVIAN_EMAIL: str = ""
     TRAVIAN_PASSWORD: str = ""
 
+    # Humanizer (anti-bot cadence)
+    HUMAN_MIN_DELAY: float = 0.6      # seconds, min think-time between requests
+    HUMAN_MAX_DELAY: float = 2.2      # seconds, max think-time between requests
+    HUMAN_LONG_PAUSE_EVERY: int = 7   # after N requests add a longer pause
+    HUMAN_LONG_PAUSE_MIN: float = 3.0
+    HUMAN_LONG_PAUSE_MAX: float = 6.0
+
+    # Operation jitter (between high-level steps)
+    OP_JITTER_MIN_SEC: float = 0.5
+    OP_JITTER_MAX_SEC: float = 2.0
+
+    # Additional human-like behavior toggles
+    HUMAN_LONG_PAUSE_PROB: float = 0.12   # probability for a long pause after a request
+    SHUFFLE_VILLAGE_ORDER: bool = True    # randomize village order per cycle
+    FARM_LIST_RANDOM_SKIP_PROB: float = 0.15  # chance to skip farm lists for a village this cycle
+    OP_COFFEE_BREAK_PROB: float = 0.10    # chance to add an extra break between cycles
+    OP_COFFEE_BREAK_MIN_MINUTES: int = 2
+    OP_COFFEE_BREAK_MAX_MINUTES: int = 6
+
+    # Map view probes (neutral page views) and farm list subset
+    MAPVIEW_PRE_ACTION_PROB: float = 0.35     # chance to open dorf1/dorf2 before big actions
+    MAPVIEW_FARM_LIST_PROB: float = 0.25      # chance to open dorf page before a farm list launch
+    FARM_LIST_SUBSET_MIN: int = 1             # minimum number of farm lists to send per village
+    FARM_LIST_SUBSET_MAX: int = 3             # maximum number of farm lists to send per village
+
     def as_dict(self) -> dict:
         return {
             "WAIT_BETWEEN_CYCLES_MINUTES": self.WAIT_BETWEEN_CYCLES_MINUTES,
@@ -109,6 +134,23 @@ class Settings:
             "LEARNING_STEP_DOWN_ON_LOW_LOSS": self.LEARNING_STEP_DOWN_ON_LOW_LOSS,
             "TRAVIAN_EMAIL": self.TRAVIAN_EMAIL,
             "TRAVIAN_PASSWORD": "***" if self.TRAVIAN_PASSWORD else "",
+            "HUMAN_MIN_DELAY": self.HUMAN_MIN_DELAY,
+            "HUMAN_MAX_DELAY": self.HUMAN_MAX_DELAY,
+            "HUMAN_LONG_PAUSE_EVERY": self.HUMAN_LONG_PAUSE_EVERY,
+            "HUMAN_LONG_PAUSE_MIN": self.HUMAN_LONG_PAUSE_MIN,
+            "HUMAN_LONG_PAUSE_MAX": self.HUMAN_LONG_PAUSE_MAX,
+            "OP_JITTER_MIN_SEC": self.OP_JITTER_MIN_SEC,
+            "OP_JITTER_MAX_SEC": self.OP_JITTER_MAX_SEC,
+            "HUMAN_LONG_PAUSE_PROB": self.HUMAN_LONG_PAUSE_PROB,
+            "SHUFFLE_VILLAGE_ORDER": self.SHUFFLE_VILLAGE_ORDER,
+            "FARM_LIST_RANDOM_SKIP_PROB": self.FARM_LIST_RANDOM_SKIP_PROB,
+            "OP_COFFEE_BREAK_PROB": self.OP_COFFEE_BREAK_PROB,
+            "OP_COFFEE_BREAK_MIN_MINUTES": self.OP_COFFEE_BREAK_MIN_MINUTES,
+            "OP_COFFEE_BREAK_MAX_MINUTES": self.OP_COFFEE_BREAK_MAX_MINUTES,
+            "MAPVIEW_PRE_ACTION_PROB": self.MAPVIEW_PRE_ACTION_PROB,
+            "MAPVIEW_FARM_LIST_PROB": self.MAPVIEW_FARM_LIST_PROB,
+            "FARM_LIST_SUBSET_MIN": self.FARM_LIST_SUBSET_MIN,
+            "FARM_LIST_SUBSET_MAX": self.FARM_LIST_SUBSET_MAX,
         }
 
 
@@ -161,6 +203,36 @@ def load_settings(env_prefix: str = "") -> Settings:
     # Credentials
     s.TRAVIAN_EMAIL = _as_str(g("TRAVIAN_EMAIL", s.TRAVIAN_EMAIL), s.TRAVIAN_EMAIL)
     s.TRAVIAN_PASSWORD = _as_str(g("TRAVIAN_PASSWORD", s.TRAVIAN_PASSWORD), s.TRAVIAN_PASSWORD)
+
+    # Humanizer
+    def _as_float(val, default: float) -> float:
+        try:
+            return float(str(val))
+        except Exception:
+            return default
+    s.HUMAN_MIN_DELAY = _as_float(g("HUMAN_MIN_DELAY", s.HUMAN_MIN_DELAY), s.HUMAN_MIN_DELAY)
+    s.HUMAN_MAX_DELAY = _as_float(g("HUMAN_MAX_DELAY", s.HUMAN_MAX_DELAY), s.HUMAN_MAX_DELAY)
+    s.HUMAN_LONG_PAUSE_EVERY = _as_int(g("HUMAN_LONG_PAUSE_EVERY", s.HUMAN_LONG_PAUSE_EVERY), s.HUMAN_LONG_PAUSE_EVERY)
+    s.HUMAN_LONG_PAUSE_MIN = _as_float(g("HUMAN_LONG_PAUSE_MIN", s.HUMAN_LONG_PAUSE_MIN), s.HUMAN_LONG_PAUSE_MIN)
+    s.HUMAN_LONG_PAUSE_MAX = _as_float(g("HUMAN_LONG_PAUSE_MAX", s.HUMAN_LONG_PAUSE_MAX), s.HUMAN_LONG_PAUSE_MAX)
+
+    # Operation jitter
+    s.OP_JITTER_MIN_SEC = _as_float(g("OP_JITTER_MIN_SEC", s.OP_JITTER_MIN_SEC), s.OP_JITTER_MIN_SEC)
+    s.OP_JITTER_MAX_SEC = _as_float(g("OP_JITTER_MAX_SEC", s.OP_JITTER_MAX_SEC), s.OP_JITTER_MAX_SEC)
+
+    # Human-like behavior options
+    s.HUMAN_LONG_PAUSE_PROB = _as_float(g("HUMAN_LONG_PAUSE_PROB", s.HUMAN_LONG_PAUSE_PROB), s.HUMAN_LONG_PAUSE_PROB)
+    s.SHUFFLE_VILLAGE_ORDER = _as_bool(g("SHUFFLE_VILLAGE_ORDER", s.SHUFFLE_VILLAGE_ORDER), s.SHUFFLE_VILLAGE_ORDER)
+    s.FARM_LIST_RANDOM_SKIP_PROB = _as_float(g("FARM_LIST_RANDOM_SKIP_PROB", s.FARM_LIST_RANDOM_SKIP_PROB), s.FARM_LIST_RANDOM_SKIP_PROB)
+    s.OP_COFFEE_BREAK_PROB = _as_float(g("OP_COFFEE_BREAK_PROB", s.OP_COFFEE_BREAK_PROB), s.OP_COFFEE_BREAK_PROB)
+    s.OP_COFFEE_BREAK_MIN_MINUTES = _as_int(g("OP_COFFEE_BREAK_MIN_MINUTES", s.OP_COFFEE_BREAK_MIN_MINUTES), s.OP_COFFEE_BREAK_MIN_MINUTES)
+    s.OP_COFFEE_BREAK_MAX_MINUTES = _as_int(g("OP_COFFEE_BREAK_MAX_MINUTES", s.OP_COFFEE_BREAK_MAX_MINUTES), s.OP_COFFEE_BREAK_MAX_MINUTES)
+
+    # Map view + farm list subset
+    s.MAPVIEW_PRE_ACTION_PROB = _as_float(g("MAPVIEW_PRE_ACTION_PROB", s.MAPVIEW_PRE_ACTION_PROB), s.MAPVIEW_PRE_ACTION_PROB)
+    s.MAPVIEW_FARM_LIST_PROB = _as_float(g("MAPVIEW_FARM_LIST_PROB", s.MAPVIEW_FARM_LIST_PROB), s.MAPVIEW_FARM_LIST_PROB)
+    s.FARM_LIST_SUBSET_MIN = _as_int(g("FARM_LIST_SUBSET_MIN", s.FARM_LIST_SUBSET_MIN), s.FARM_LIST_SUBSET_MIN)
+    s.FARM_LIST_SUBSET_MAX = _as_int(g("FARM_LIST_SUBSET_MAX", s.FARM_LIST_SUBSET_MAX), s.FARM_LIST_SUBSET_MAX)
     return s
 
 
