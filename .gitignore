@@ -1,0 +1,73 @@
+# === Python ignores ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Environment files
+.env
+
+# Logs or debug output
+*.log
+
+# Byte-compiled / cache files
+*.pyc
+
+# Jupyter notebook checkpoints (if ever used)
+.ipynb_checkpoints/
+
+# === Editor ignores ===
+.vscode/
+.idea/
+*.swp
+
+# === OS-specific ignores ===
+.DS_Store
+Thumbs.db
+
+# === Travian bot project ignores ===
+
+# Ignore database output and sensitive files
+# Runtime data
+database/full_map_scans/
+database/unoccupied_oases/
+
+# Keep directory structure
+!database/full_map_scans/.gitkeep
+!database/unoccupied_oases/.gitkeep
+!database/raid_plans/.gitkeep 
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data files
+database/farm_lists/
+database/full_map_scans/
+database/raid_plans/
+database/unoccupied_oases/
+database/farm_lists.json
+database/saved_raid_plan.json 
+
+# Ignore all database files in the travian bot
+API_based_automations/travian_bot/database/ 
