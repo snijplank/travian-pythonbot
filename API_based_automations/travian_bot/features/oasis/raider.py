@@ -1,8 +1,15 @@
 import logging
-import time
+import json, time
 from random import uniform
-from analysis.number_to_unit_mapping import get_unit_name
 from features.oasis.validator import is_valid_unoccupied_oasis
+from core.learning_store import LearningStore
+from core.metrics import add_sent, add_skip
+from core.unit_catalog import FACTION_TO_TRIBE, resolve_label_t, t_to_u
+from pathlib import Path
+
+def resolve_unit_name(tribe_id: int, unit_code: str) -> str:
+    # Use central catalog label with local slot code
+    return resolve_label_t(tribe_id, unit_code)
 
 def get_units_for_distance(distance, distance_ranges):
     """Get the appropriate unit combination for a given distance."""
@@ -10,6 +17,26 @@ def get_units_for_distance(distance, distance_ranges):
         if range_data["start"] <= distance < range_data["end"]:
             return range_data["units"]
     return None
+
+def _append_pending(oasis_key: str, unit_code: str, recommended: int, sent: int) -> None:
+    path = Path("database/learning/pending.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    except Exception:
+        data = []
+    entry = {
+        "oasis": oasis_key,             # "(x,y)"
+        "ts_sent": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "unit": unit_code,
+        "recommended": int(recommended),
+        "sent": int(sent),
+        "_epoch": time.time(),
+    }
+    data.append(entry)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(path)
 
 def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=False, hero_available=False):
     """
@@ -31,8 +58,10 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
     # Get village coordinates from the first oasis's parent folder name
     village_coords = next(iter(oases.keys())).split("_")
     village_x, village_y = int(village_coords[0]), int(village_coords[1])
+    tribe_id = FACTION_TO_TRIBE.get(str(faction), 4)
     logging.info(f"Raid origin village at ({village_x}, {village_y})")
     logging.info(f"Maximum raid distance: {max_raid_distance} tiles")
+    ls = LearningStore()
 
     # Get current troops
     troops_info = api.get_troops_in_village()
@@ -51,32 +80,52 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
         units = get_units_for_distance(distance, distance_ranges)
         if not units:
             logging.info(f"No unit combination defined for distance {distance:.1f}. Skipping.")
-            continue
-
-        # Check if we have enough troops for all units in the combination
-        can_raid = True
-        for unit in units:
-            if troops_info.get(unit["unit_code"], 0) < unit["group_size"]:
-                can_raid = False
-                logging.info(f"Not enough {get_unit_name(unit['unit_code'], faction)} for distance {distance:.1f}. Skipping.")
-                break
-
-        if not can_raid:
+            add_skip("no_unit_combo")
             continue
 
         x_str, y_str = coords.split("_")
         x, y = int(x_str), int(y_str)
-        
+        key = f"({x},{y})"
+
+        # Apply learning multiplier per oasis to adjust suggested group sizes
+        mul = float(ls.get_multiplier(key))
+        base_total = sum(int(u.get("group_size", 0)) for u in units)
+        # Adjust per-unit composition with multiplier, minimum 1 if base > 0
+        adjusted_units = []
+        for u in units:
+            base_g = int(u.get("group_size", 0))
+            adj_g = int(round(base_g * mul)) if base_g > 0 else 0
+            if base_g > 0 and adj_g <= 0:
+                adj_g = 1
+            adjusted_units.append({"unit_code": u["unit_code"], "base_group": base_g, "adj_group": adj_g})
+
+        # Check if we have enough troops for adjusted combination
+        can_raid = True
+        for au in adjusted_units:
+            uc = au["unit_code"]
+            key_u = t_to_u(tribe_id, uc)
+            need = int(au["adj_group"])
+            have = int(troops_info.get(key_u, troops_info.get(uc, 0)))
+            if need > have:
+                can_raid = False
+                logging.info(f"Not enough {resolve_unit_name(tribe_id, uc)} (need {need}, have {have}) for distance {distance:.1f}. Skipping.")
+                add_skip("insufficient_troops")
+                break
+        if not can_raid:
+            continue
+
         # Validate oasis is raidable
         if not is_valid_unoccupied_oasis(api, x, y):
+            add_skip("invalid_oasis")
             continue
 
         # Prepare raid setup with all units in the combination
         raid_setup = {}
-        for unit in units:
-            raid_setup[unit["unit_code"]] = unit["group_size"]
-            unit_name = get_unit_name(unit["unit_code"], faction)
-            logging.info(f"Adding {unit['group_size']} {unit_name} to raid")
+        logging.info(f"Using multiplier {mul:.2f} for oasis {key}")
+        for au in adjusted_units:
+            raid_setup[au["unit_code"]] = au["adj_group"]
+            unit_name = resolve_unit_name(tribe_id, au["unit_code"])
+            logging.info(f"Adding {au['adj_group']} {unit_name} to raid (base {au['base_group']})")
 
         logging.info(f"Launching raid on oasis at ({x}, {y})... Distance: {distance:.1f} tiles")
         attack_info = api.prepare_oasis_attack(None, x, y, raid_setup)
@@ -84,12 +133,27 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
 
         if success:
             logging.info(f"✅ Raid sent to ({x}, {y}) - Distance: {distance:.1f} tiles")
+            add_sent(1)
+            # Log één pending entry voor deze raid zodat de report checker de multiplier kan bijstellen.
+            # Omdat we hier een combinatie van units sturen, labelen we dit als 'mixed'.
+            try:
+                adj_total = sum(int(a["adj_group"]) for a in adjusted_units)
+                _append_pending(key, "mixed", recommended=int(base_total), sent=int(adj_total))
+            except Exception:
+                # Logging naar pending is niet kritisch voor het versturen; fouten hier mogen geen crash veroorzaken.
+                pass
             # Update available troops
-            for unit in units:
-                troops_info[unit["unit_code"]] -= unit["group_size"]
+            for au in adjusted_units:
+                uc = au["unit_code"]
+                key_u = t_to_u(tribe_id, uc)
+                if key_u in troops_info:
+                    troops_info[key_u] = max(0, int(troops_info.get(key_u, 0)) - int(au["adj_group"]))
+                else:
+                    troops_info[uc] = max(0, int(troops_info.get(uc, 0)) - int(au["adj_group"]))
             sent_raids += 1
         else:
             logging.error(f"❌ Failed to send raid to ({x}, {y}) - Distance: {distance:.1f} tiles")
+            add_skip("send_failed")
 
         time.sleep(uniform(0.5, 1.2))
 
@@ -97,7 +161,7 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
     logging.info("Troops remaining:")
     for unit_code, amount in troops_info.items():
         if amount > 0 and unit_code != "uhero":
-            unit_name = get_unit_name(unit_code, faction)
+            unit_name = resolve_unit_name(tribe_id, unit_code)
             logging.info(f"    {unit_name}: {amount} left")
             
     return sent_raids 

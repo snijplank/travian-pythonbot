@@ -2,8 +2,10 @@ import requests
 import re
 from bs4 import BeautifulSoup
 from analysis.animal_to_power_mapping import get_animal_power
+from core.unit_catalog import resolve_unit_base_name
 from typing import Optional
 import logging
+from pathlib import Path
 
 
 class TravianAPI:
@@ -233,6 +235,10 @@ class TravianAPI:
 
         troop_setup = normalize_troops_dict(troop_setup)
 
+        # Early sanity checks to provide clearer errors (e.g., when trying to send escort with 0 troops)
+        if sum(v for v in troop_setup.values() if isinstance(v, int)) <= 0:
+            raise ValueError("Geen troepen geselecteerd om te versturen (escort/aanval). Voeg minimaal één eenheid toe aan de samenstelling.")
+
         url = f"{self.server_url}/build.php?gid=16&tt=2&eventType=4&targetMapId={map_id}"
         res = self.session.get(url)
         res.raise_for_status()
@@ -256,22 +262,52 @@ class TravianAPI:
         troop_preparation_res.raise_for_status()
 
         soup = BeautifulSoup(troop_preparation_res.text, "html.parser")
-        action_input = soup.select_one('input[name="action"]')
-        if not action_input:
-            raise Exception("[-] No action input found during preparation.")
 
-        action = action_input["value"]
+        # Accept multiple possible hidden token names across Travian variants
+        token_input = soup.select_one('input[name="action"], input[name="a"], input[name="k"], input[name="c"]')
+        if not token_input:
+            # Dump HTML for debugging, and surface any validation messages to the user.
+            try:
+                Path("logs").mkdir(parents=True, exist_ok=True)
+                (Path("logs")/"send_hero_form_dump.html").write_text(troop_preparation_res.text, encoding="utf-8")
+            except Exception:
+                pass
+            page_errors = self._extract_page_errors(troop_preparation_res.text)
+            hint = f" Mogelijke reden: {page_errors[0]}" if page_errors else ""
+            raise Exception(f"[-] Geen action/CSRF token gevonden tijdens voorbereiden.{hint} (logs/send_hero_form_dump.html)")
+
+        action_field = token_input.get("name", "action")
+        action = token_input.get("value", "")
 
         button = soup.find("button", id="confirmSendTroops")
         if not button:
-            raise Exception("[-] Confirm button not found during preparation.")
-        onclick = button.get("onclick")
+            try:
+                Path("logs").mkdir(parents=True, exist_ok=True)
+                (Path("logs")/"send_hero_form_dump.html").write_text(troop_preparation_res.text, encoding="utf-8")
+            except Exception:
+                pass
+            page_errors = self._extract_page_errors(troop_preparation_res.text)
+            # Heuristics: escort without enough troops often removes the confirm button and shows a validation error.
+            escort_hint = ""
+            if any("escort" in e.lower() or "begeleiding" in e.lower() for e in page_errors):
+                escort_hint = " (mogelijk escort geselecteerd zonder voldoende troepen)"
+            hint = f" Mogelijke reden: {page_errors[0]}{escort_hint}" if page_errors else " Controleer of er voldoende troepen zijn geselecteerd (ook bij escort)."
+            raise Exception(f"[-] Bevestigingsknop niet gevonden tijdens voorbereiden.{hint} (logs/send_hero_form_dump.html)")
+        onclick = button.get("onclick", "")
         checksum_match = re.search(r"value\s*=\s*'([a-f0-9]+)'", onclick)
         if not checksum_match:
-            raise Exception("[-] Checksum not found in onclick during preparation.")
+            try:
+                Path("logs").mkdir(parents=True, exist_ok=True)
+                (Path("logs")/"send_hero_form_dump.html").write_text(troop_preparation_res.text, encoding="utf-8")
+            except Exception:
+                pass
+            page_errors = self._extract_page_errors(troop_preparation_res.text)
+            hint = f" Mogelijke reden: {page_errors[0]}" if page_errors else ""
+            raise Exception(f"[-] Checksum niet gevonden in onclick tijdens voorbereiden.{hint} (logs/send_hero_form_dump.html)")
         checksum = checksum_match.group(1)
 
         return {
+            "action_field": action_field,
             "action": action,
             "checksum": checksum,
         }
@@ -314,9 +350,13 @@ class TravianAPI:
             return normalized
 
         troops = normalize_troops_dict(troops)
+        if sum(v for v in troops.values() if isinstance(v, int)) <= 0:
+            raise ValueError("Geen troepen geselecteerd om te versturen (escort/aanval). Voeg minimaal één eenheid toe aan de samenstelling.")
 
+        token_field = attack_info.get("action_field", "action")
+        token_value = attack_info.get("action", "")
         final_payload = {
-            "action": attack_info["action"],
+            token_field: token_value,
             "eventType": 4,
             "villagename": "",
             "x": x,
@@ -333,16 +373,89 @@ class TravianAPI:
         final_payload["troops[0][catapultTarget2]"] = ""
         final_payload["troops[0][villageId]"] = village_id
 
-        res = self.session.post(f"{self.server_url}/build.php?gid=16&tt=2", data=final_payload, allow_redirects=False)
+        res = self.session.post(
+            f"{self.server_url}/build.php?gid=16&tt=2",
+            data=final_payload,
+            headers={"Referer": f"{self.server_url}/build.php?gid=16&tt=2"},
+            allow_redirects=False,
+        )
         res.raise_for_status()
 
-        return res.status_code == 302 and res.headers.get("Location") == "/build.php?gid=16&tt=1"
+        ok = (res.status_code == 302 and res.headers.get("Location") == "/build.php?gid=16&tt=1")
+        if not ok:
+            try:
+                Path("logs").mkdir(parents=True, exist_ok=True)
+                content = getattr(res, "text", "")
+                (Path("logs")/"send_hero_post_dump.html").write_text(content or f"Status: {res.status_code}\nHeaders: {dict(res.headers)}", encoding="utf-8")
+            except Exception:
+                pass
+            # Attempt to extract any errors from the response body when available
+            page_errors = []
+            try:
+                page_errors = self._extract_page_errors(getattr(res, "text", "") or "")
+            except Exception:
+                pass
+            if page_errors:
+                logging.error(f"Verzenden mislukt. Mogelijke reden: {page_errors[0]}")
+        return ok
+
+    
 
     def get_tile_html(self, x, y):
         url = f"{self.server_url}/api/v1/map/tile-details"
         res = self.session.post(url, json={"x": x, "y": y})
         res.raise_for_status()
         return res.json()["html"]
+
+
+
+
+    def find_latest_oasis_report(self, x: int | None, y: int | None) -> Optional[dict]:
+        """
+        Best-effort: zoekt in /berichte.php naar het meest recente rapport dat (x|y) bevat,
+        opent dat rapport en retourneert {'html': ...}. Retourneert None als niets gevonden.
+        """
+        try:
+            # 1) lijstpagina
+            lst = self.session.get(f"{self.server_url}/berichte.php")
+            lst.raise_for_status()
+            html = lst.text
+            if x is not None and y is not None:
+                # Zoek link met coordinaten in titel/tekst
+                # Match anchors naar report detail: /berichte.php?id=123...
+                import re
+                # Vind alle links naar detail-rapport
+                links = re.findall(r'href="(/berichte\\.php\\?id=\\d+[^"]*)"', html)
+                # Heuristiek: check in de buurt van coords string
+                coord = f"({x}|{y})"
+                candidate = None
+                for m in re.finditer(r'(<a[^>]+berichte\\.php\\?id=\\d+[^>]*>.*?</a>)', html, re.DOTALL):
+                    block = m.group(1)
+                    if coord in block:
+                        href_match = re.search(r'href="(/berichte\\.php\\?id=\\d+[^"]*)"', block)
+                        if href_match:
+                            candidate = href_match.group(1)
+                            break
+                # fallback: pak eerste link als niets met coords
+                if not candidate and links:
+                    candidate = links[0]
+                if not candidate:
+                    return None
+                # 2) detailpagina
+                rep = self.session.get(f"{self.server_url}{candidate}")
+                rep.raise_for_status()
+                return {"html": rep.text}
+            else:
+                # Geen coords → neem laatste eerste link
+                import re
+                hrefs = re.findall(r'href="(/berichte\\.php\\?id=\\d+[^"]*)"', html)
+                if not hrefs:
+                    return None
+                rep = self.session.get(f"{self.server_url}{hrefs[0]}")
+                rep.raise_for_status()
+                return {"html": rep.text}
+        except Exception:
+            return None
 
     def log_cookies(self):
         """Log all cookies for debugging."""
@@ -378,6 +491,21 @@ class TravianAPI:
             print("⚠️ Troops table not found.")
             return {}
 
+        # Resolve tribeId of the current village for readable unit names
+        tribe_id = None
+        try:
+            pinfo = self.get_player_info() or {}
+            current_vid = (pinfo or {}).get("currentVillageId")
+            for v in (pinfo or {}).get("villages", []) or []:
+                if v.get("id") == current_vid:
+                    tribe_id = int(v.get("tribeId")) if v.get("tribeId") is not None else None
+                    break
+        except Exception:
+            tribe_id = None
+
+        def _resolve_unit_name(tribe_id_val: int | None, unit_code: str) -> str:
+            return resolve_unit_base_name(tribe_id_val, unit_code)
+
         troops = {}
         print("\n⚔️ Current troops in village:")
         print("="*30)
@@ -396,7 +524,10 @@ class TravianAPI:
                         try:
                             count = int(num.text.strip())
                             troops[f"u{code_num}"] = count
-                            print(f"   🛡️ u{code_num}: {count:,} units")
+                            # Pretty name if possible
+                            name = _resolve_unit_name(tribe_id, f"u{code_num}")
+                            label = f"{name} (u{code_num})" if name != f"u{code_num}" else f"u{code_num}"
+                            print(f"   🛡️ {label}: {count:,} units")
                         except ValueError:
                             continue
                     else:
@@ -413,6 +544,116 @@ class TravianAPI:
         response = self.session.post(f"{self.server_url}/api/v1/graphql", json=payload)
         response.raise_for_status()
         return response.json()
+
+    def _parse_hero_attack_from_html(self, html: str) -> int | None:
+        """Best-effort parse of the hero's fighting strength (attack) from hero pages.
+        Looks for common localized labels like Fighting strength / Vechtkracht / Kampfkraft, etc.
+        Returns an integer or None if not found.
+        """
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            text = soup.get_text(" ", strip=True)
+            patterns = [
+                r"Fighting\s+strength\D+(\d+)",
+                r"Vechtkracht\D+(\d+)",
+                r"Kampfkraft\D+(\d+)",
+                r"Сила\s+героя\D+(\d+)",
+                r"Força\s+de\s+combate\D+(\d+)",
+                r"Forza\s+d'attacco\D+(\d+)",
+            ]
+            for pat in patterns:
+                m = re.search(pat, text, re.IGNORECASE)
+                if m:
+                    return int(m.group(1))
+            for lbl in ("Fighting", "Vecht", "Kampf", "Attacco", "Combate"):
+                el = soup.find(string=re.compile(lbl, re.IGNORECASE))
+                if el and el.parent:
+                    m2 = re.search(r"(\d+)", el.parent.get_text(" ", strip=True))
+                    if m2:
+                        return int(m2.group(1))
+        except Exception:
+            pass
+        return None
+
+    def get_hero_attack_estimate(self) -> int | None:
+        """Fetch the hero's current fighting strength (attack) via HUD JSON or hero pages.
+        Returns an integer if found, else None.
+        """
+        # 1) Try HUD JSON first (may not include attack on all servers)
+        try:
+            res = self.session.get(f"{self.server_url}/api/v1/hero/dataForHUD")
+            res.raise_for_status()
+            data = res.json() or {}
+            for k in ("fightingStrength", "fightingstrength", "attack", "heroPower", "power"):
+                if k in data and isinstance(data[k], (int, float)):
+                    return int(data[k])
+            stats = data.get("stats") or data.get("attributes") or {}
+            for k in ("fightingStrength", "attack", "power"):
+                v = stats.get(k)
+                if isinstance(v, (int, float)):
+                    return int(v)
+        except Exception:
+            pass
+
+        # 2) Try common hero pages and parse HTML
+        for path in ("/hero/attributes", "/hero.php", "/hero", "/hero/inventory"):
+            try:
+                page = self.session.get(f"{self.server_url}{path}")
+                if getattr(page, "ok", False):
+                    atk = self._parse_hero_attack_from_html(page.text)
+                    if isinstance(atk, int):
+                        return atk
+            except Exception:
+                continue
+        return None
+
+    def _extract_page_errors(self, html: str) -> list:
+        """Best-effort extraction of validation/feedback errors from a Travian form page.
+
+        Returns a list of short error messages (strings) if any likely errors are detected.
+        This scans common Travian layouts across languages.
+        """
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            candidates = []
+
+            # Common containers that hold errors or validation messages
+            selectors = [
+                ".error", ".errors", ".alert", ".messageLine.error", ".dialogMessage.error",
+                "#error", "#errors", ".warning", ".validationError", ".textWithError"
+            ]
+            for sel in selectors:
+                for el in soup.select(sel):
+                    txt = el.get_text(" ", strip=True)
+                    if txt:
+                        candidates.append(txt)
+
+            # Also inspect generic form notices/hints often placed near the troop table
+            for el in soup.select(".notice, .hint, .tooltip, .errorMsg, .formError"):
+                txt = el.get_text(" ", strip=True)
+                if txt:
+                    candidates.append(txt)
+
+            # As a last resort, pick visible list items that often carry errors
+            for el in soup.select("ul li"):
+                classes = " ".join(el.get("class", []))
+                if any(k in classes for k in ("error", "warning", "invalid")):
+                    txt = el.get_text(" ", strip=True)
+                    if txt:
+                        candidates.append(txt)
+
+            # De-duplicate while preserving order and keep it short
+            seen = set()
+            result = []
+            for msg in candidates:
+                if msg not in seen:
+                    seen.add(msg)
+                    result.append(msg)
+                if len(result) >= 5:
+                    break
+            return result
+        except Exception:
+            return []
 
     def launch_farm_list(self, farm_list_id: int) -> bool:
         """Launch a farm list by its ID."""

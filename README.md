@@ -107,6 +107,8 @@ To set up full automation (Option 8), follow these steps in order:
 
 ## Configuration
 
+All runtime configuration is read from `API_based_automations/travian_bot/config.yaml` (single source of truth). `.env` is no longer used for overrides.
+
 - Farm list configurations are stored in `database/farm_lists/`
 - Raid settings are stored in `database/raid_plans/`
 - Village and player information is stored in `database/identity.json`

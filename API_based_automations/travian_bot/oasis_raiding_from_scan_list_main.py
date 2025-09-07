@@ -8,12 +8,67 @@ from identity_handling.login import login
 from identity_handling.identity_helper import load_villages_from_identity
 from core.travian_api import TravianAPI
 from analysis.number_to_unit_mapping import get_unit_name
+from core.unit_catalog import resolve_label_t
 from core.database_helpers import load_latest_unoccupied_oases
 from core.database_raid_config import load_saved_raid_plan, save_raid_plan
 from features.oasis.raider import run_raid_batch
 from core.hero_runner import try_send_hero_to_oasis  # ✅ Hero logic
 from identity_handling.faction_utils import get_faction_name
-from dotenv import load_dotenv
+
+# --- Unit name mapping (per tribe) ---
+UNIT_NAME_MAP = {
+    1: {  # Romans
+        "t1": "Legionnaire", "t2": "Praetorian", "t3": "Imperian", "t4": "Equites Legati",
+        "t5": "Equites Imperatoris", "t6": "Equites Caesaris", "t7": "Battering Ram", "t8": "Fire Catapult", "t9": "Senator", "t10": "Settler",
+    },
+    2: {  # Teutons
+        "t1": "Clubswinger", "t2": "Spearman", "t3": "Axeman", "t4": "Scout",
+        "t5": "Paladin", "t6": "Teutonic Knight", "t7": "Ram", "t8": "Catapult", "t9": "Chief", "t10": "Settler",
+    },
+    3: {  # Gauls
+        "t1": "Phalanx", "t2": "Swordsman", "t3": "Pathfinder", "t4": "Theutates Thunder",
+        "t5": "Druidrider", "t6": "Haeduan", "t7": "Ram", "t8": "Trebuchet", "t9": "Chieftain", "t10": "Settler",
+    },
+    4: {  # Huns
+        "t1": "Mercenary", "t2": "Bowman", "t3": "Spotter", "t4": "Steppe Rider",
+        "t5": "Marksman", "t6": "Marauder", "t7": "Ram", "t8": "Catapult", "t9": "Logades", "t10": "Settler",
+    },
+    5: {  # Egyptians
+        "t1": "Slave Militia", "t2": "Ash Warden", "t3": "Khopesh Warrior", "t4": "Sopdu Explorer",
+        "t5": "Anhur Guard", "t6": "Resheph Chariot", "t7": "Ram", "t8": "Stone Catapult", "t9": "Nomarch", "t10": "Settler",
+    },
+}
+
+
+def _u_to_t(u_code: str) -> str | None:
+    """Map global unit id like 'u61' to local slot 't1'..'t10'."""
+    try:
+        if not (u_code and u_code.startswith("u") and u_code[1:].isdigit()):
+            return None
+        n = int(u_code[1:])
+        if 1 <= n <= 10:
+            return f"t{n}"
+        if 11 <= n <= 20:
+            return f"t{n-10}"
+        if 21 <= n <= 30:
+            return f"t{n-20}"
+        if 31 <= n <= 40:
+            return f"t{n-30}"
+        if 41 <= n <= 50:
+            return f"t{n-40}"
+        if 61 <= n <= 70:
+            return f"t{n-60}"
+    except Exception:
+        return None
+    return None
+
+
+def resolve_unit_name(tribe_id: int, unit_code: str) -> str:
+    """Return readable unit name with local code in parentheses, or fallback to Unknown."""
+    tcode = _u_to_t(unit_code) if unit_code.startswith("u") else unit_code if unit_code.startswith("t") else None
+    if tcode and tribe_id in UNIT_NAME_MAP:
+        return f"{UNIT_NAME_MAP[tribe_id].get(tcode, tcode)} ({tcode})"
+    return f"Unknown Unit ({unit_code})"
 
 class NoTimestampFormatter(logging.Formatter):
     def format(self, record):
@@ -116,8 +171,8 @@ def run_raid_planner(
 
         logging.info("Current troops in village:")
         for unit_code, amount in troops_info.items():
-            unit_name = get_unit_name(unit_code, faction)
-            logging.info(f"    {unit_name} ({unit_code}): {amount} units")
+            unit_name = resolve_unit_name(tribe_id, unit_code)
+            logging.info(f"    {unit_name}: {amount} units")
 
         # Run farm lists only if explicitly requested
         if run_farm_lists:
@@ -219,8 +274,8 @@ def setup_raid_plan_interactive(api, server_url, selected_village_index=None):
 
     logging.info("Current troops in village:")
     for unit_code, amount in troops_info.items():
-        unit_name = get_unit_name(unit_code, faction)
-        logging.info(f"    {unit_name} ({unit_code}): {amount} units")
+        unit_name = resolve_label_t(tribe_id, unit_code)
+        logging.info(f"    {unit_name}: {amount} units")
 
     # Get max raid distance
     while True:
@@ -254,8 +309,8 @@ def setup_raid_plan_interactive(api, server_url, selected_village_index=None):
         while True:
             print("\nAvailable units:")
             for unit_code, amount in troops_info.items():
-                unit_name = get_unit_name(unit_code, faction)
-                print(f"    {unit_name} ({unit_code}): {amount} units")
+                unit_name = resolve_unit_name(tribe_id, unit_code)
+                print(f"    {unit_name}: {amount} units")
 
             unit_code = input("\nEnter unit code to add (or press Enter to finish this range): ").strip()
             if not unit_code:
@@ -267,7 +322,7 @@ def setup_raid_plan_interactive(api, server_url, selected_village_index=None):
 
             while True:
                 try:
-                    group_size = int(input(f"Enter group size for {get_unit_name(unit_code, faction)}: "))
+                    group_size = int(input(f"Enter group size for {resolve_unit_name(tribe_id, unit_code)}: "))
                     if 1 <= group_size <= troops_info[unit_code]:
                         break
                     print(f"Group size must be between 1 and {troops_info[unit_code]}.")
@@ -306,75 +361,14 @@ def setup_raid_plan_interactive(api, server_url, selected_village_index=None):
     return raid_plan
 
 def main():
-    """Main entry point for the oasis raiding script."""
-    # Load environment variables
-    load_dotenv()
-    
-    # Get server URL from environment
-    server_url = os.getenv('TRAVIAN_SERVER_URL')
-    if not server_url:
-        print("❌ Error: TRAVIAN_SERVER_URL not found in .env file")
-        return
-    
-    # Login to server
+    """Main entry point for the oasis raiding script (YAML-config, no .env)."""
+    # Login to server using configured identity
     print("\n🔐 Logging into Travian...")
-    api = login(server_url)
-    if not api:
-        print("❌ Failed to login")
-        return
-    
-    print("\n🎯 Starting multi-village raid planner (full automation)...")
-    
-    while True:
-        try:
-            # Get all villages
-            villages = api.get_villages()
-            if not villages:
-                print("❌ No villages found")
-                return
-            
-            # Process each village
-            for i, village in enumerate(villages, 1):
-                village_id = village['id']
-                village_name = village['name']
-                village_coords = (village['x'], village['y'])
-                
-                print(f"\n{'='*50}")
-                print(f"Processing village {i}/{len(villages)}: {village_name}")
-                print(f"{'='*50}")
-                print(f"Village coordinates: {village_coords}")
-                
-                # Switch to village
-                print(f"\nSwitching to village {village_id}")
-                api.switch_village(village_id)
-                
-                # Get current troops
-                troops = api.get_troops_in_village()
-                if troops:
-                    print("Current troops in village:")
-                    for unit_id, amount in troops.items():
-                        unit_name = api.get_unit_name(unit_id)
-                        print(f"    {unit_name}: {amount} units")
-                print()
-                
-                # First run farm lists
-                print("Running farm lists...")
-                run_farm_list_raids(api, server_url, village_id)
-                
-                # Then run oasis raids
-                run_raid_planner(api, village_id)
-            
-            print("\n⏳ Waiting 50 minutes before next raid cycle...")
-            time.sleep(50 * 60)  # 50 minutes in seconds
-            
-        except KeyboardInterrupt:
-            print("\n\n⚠️ Raid planner stopped by user")
-            break
-        except Exception as e:
-            print(f"\n❌ Error during raid cycle: {str(e)}")
-            print("⏳ Waiting 5 minutes before retrying...")
-            time.sleep(5 * 60)  # 5 minutes in seconds
-            continue
+    session, server_url = login()
+    api = TravianAPI(session, server_url)
+
+    print("\n🎯 Starting raid planner for all villages (single pass)...")
+    run_raid_planner(api, server_url, reuse_saved=True, multi_village=True, run_farm_lists=True)
 
 if __name__ == "__main__":
     main()

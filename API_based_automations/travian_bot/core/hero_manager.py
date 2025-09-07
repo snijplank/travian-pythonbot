@@ -1,12 +1,14 @@
+import re
+from bs4 import BeautifulSoup
 import os
 from .hero_runner import try_send_hero_to_oasis
 import logging
 import json
-import re
 import html
 from dataclasses import dataclass
 from typing import Optional, Tuple
 from bs4 import BeautifulSoup
+from pathlib import Path
 
 @dataclass
 class HeroStatus:
@@ -111,5 +113,54 @@ class HeroManager:
             return None
 
     def send_hero_with_escort(self, village, oasis):
-        """Send hero to attack an oasis."""
-        return try_send_hero_to_oasis(self.api, village, oasis) 
+        """Send hero to attack an oasis with robust preflight and debug dumps.
+        Ensures we're in the correct village context and that the rally point send form is reachable.
+        """
+        # 0) Quick availability check: if there are zero troops available, fail fast with a clear message
+        try:
+            available = self.api.get_troops_in_village()  # returns dict like {"u61": 5, ...}
+            total_non_hero = sum(v for v in available.values() if isinstance(v, int))
+            if total_non_hero <= 0:
+                msg = (
+                    "Geen escort mogelijk: er zijn momenteel geen troepen in het dorp. "
+                    "Tip: zet escort-minimum in je config lager of wacht tot troepen terug zijn."
+                )
+                logging.error(f"[HeroRaider] {msg}")
+                raise ValueError(msg)
+        except Exception:
+            # If the availability probe fails, continue; deeper send will still try and dump HTML if needed
+            pass
+
+        try:
+            # 1) Ensure village context (important for correct troop slots and rally point state)
+            vid = str(village.get("village_id") if isinstance(village, dict) else getattr(village, "village_id", ""))
+            if vid:
+                self.api.session.get(f"{self.api.server_url}/dorf1.php?newdid={vid}")
+
+            # 2) Prefetch rally point send tab (tt=2) and dump HTML for diagnostics
+            rp_res = self.api.session.get(f"{self.api.server_url}/build.php?gid=16&tt=2")
+            try:
+                Path("logs").mkdir(parents=True, exist_ok=True)
+                (Path("logs")/"rallypoint_tt2_prefetch.html").write_text(rp_res.text, encoding="utf-8")
+            except Exception:
+                pass
+        except Exception as e:
+            logging.error(f"[HeroRaider] Preflight error before sending hero: {e}")
+
+        # 3) Delegate to the actual sender
+        try:
+            return try_send_hero_to_oasis(self.api, village, oasis)
+        except ValueError as e:
+            # Known user-facing validation (e.g., no troops selected)
+            logging.error(f"[HeroRaider] {e}")
+            raise
+        except Exception as e:
+            # On failure, try to capture the current rally point page for debugging
+            try:
+                rp_err = self.api.session.get(f"{self.api.server_url}/build.php?gid=16&tt=2")
+                Path("logs").mkdir(parents=True, exist_ok=True)
+                (Path("logs")/"rallypoint_tt2_error_dump.html").write_text(rp_err.text, encoding="utf-8")
+            except Exception:
+                pass
+            logging.error(f"[HeroRaider] ❌ Hero raid skipped or failed during send: {e}")
+            raise

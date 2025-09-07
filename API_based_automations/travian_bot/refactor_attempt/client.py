@@ -1,20 +1,14 @@
 import os
 from typing import Optional, List
-from dotenv import load_dotenv
 from auth import TravianAuth, AuthCredentials
 from api import TravianAPI
 from models import Avatar, Coordinates, OasisInfo
 
 class TravianClient:
     def __init__(self, email: Optional[str] = None, password: Optional[str] = None):
-        # Load credentials from environment if not provided
-        if email is None or password is None:
-            load_dotenv()
-            email = email or os.getenv("TRAVIAN_EMAIL")
-            password = password or os.getenv("TRAVIAN_PASSWORD")
-            
-            if not email or not password:
-                raise ValueError("Email and password must be provided either directly or through environment variables")
+        # Credentials must be passed explicitly; environment-based loading removed.
+        if not email or not password:
+            raise ValueError("Email and password must be provided explicitly (config.yaml/.env not supported here)")
 
         self.auth = TravianAuth(AuthCredentials(email=email, password=password))
         self.api = None

@@ -6,7 +6,6 @@ Tests the hero raiding functionality with all necessary checks and validations.
 import os
 import sys
 import logging
-from dotenv import load_dotenv
 import time
 import random
 
@@ -210,9 +209,6 @@ def test_hero_raiding(api):
             time.sleep(60)  # Wait for 60 seconds before checking again
 
 def main():
-    # Load environment variables
-    load_dotenv()
-    
     # Login to the server and initialize API
     print("Logging into the server...")
     session, server_url = login()

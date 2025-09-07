@@ -1,0 +1,44 @@
+# --- Travian Bot config.yaml ---
+# Enige bron van configuratie (geen .env overrides)
+
+# Cadans
+WAIT_BETWEEN_CYCLES_MINUTES: 10
+JITTER_MINUTES: 10
+SERVER_SELECTION: 0
+
+# Daily limiter
+ENABLE_CYCLE_LIMITER: false         # zet op true om limiter te activeren
+DAILY_MAX_RUNTIME_MINUTES: 600     # 10 uur
+DAILY_BLOCKS: 3                    # verdeel runtime over 3 blokken
+
+# Logging (optioneel, nog niet gebruikt in launcher)
+LOG_LEVEL: INFO
+LOG_DIR: logs
+
+
+SKIP_FARM_LISTS_FIRST_RUN: false
+
+ESCORT_UNIT_PRIORITY:
+  - t5
+  - t3
+  - t1
+  - t2
+  - t4
+  - t6
+  - t7
+  - t8
+  - t9
+  - t10
+
+# Learning loop (dynamische escort-aanpassingen)
+LEARNING_MIN_MUL: 0.8
+LEARNING_MAX_MUL: 2.5
+LEARNING_LOSS_THRESHOLD_LOW: 0.20
+LEARNING_LOSS_THRESHOLD_HIGH: 0.50
+LEARNING_STEP_UP_ON_LOST: 0.25
+LEARNING_STEP_UP_ON_HIGH_LOSS: 0.10
+LEARNING_STEP_DOWN_ON_LOW_LOSS: 0.10
+
+# Credentials (leave empty to be prompted interactively)
+TRAVIAN_EMAIL: "michaelsnijder@hotmail.com"
+TRAVIAN_PASSWORD: "Sjaaktrekhaak24"

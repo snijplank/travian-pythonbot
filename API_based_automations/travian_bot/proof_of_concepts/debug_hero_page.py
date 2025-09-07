@@ -7,7 +7,6 @@ It demonstrates how to get hero information from the hero page.
 import os
 import sys
 import logging
-from dotenv import load_dotenv
 
 # Add the parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -53,9 +52,6 @@ def debug_hero_page(api):
             print("❌ No current village information")
 
 def main():
-    # Load environment variables
-    load_dotenv()
-    
     # Login to the server and initialize API
     print("Logging into the server...")
     session, server_url = login()

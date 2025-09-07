@@ -6,7 +6,6 @@ It demonstrates the basic tile analysis functionality.
 
 import os
 import sys
-from dotenv import load_dotenv
 
 # Add the parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,9 +15,6 @@ from core.travian_api import TravianAPI
 from analysis.tile_analysis import analyze_tile, print_tile_analysis
 
 def main():
-    # Load environment variables
-    load_dotenv()
-    
     # Login to the server and initialize API
     print("Logging into the server...")
     session, server_url = login()

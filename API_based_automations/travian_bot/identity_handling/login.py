@@ -4,37 +4,26 @@ import base64
 import secrets
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+try:
+    from config.config import settings
+except Exception:
+    class _SettingsFallback:
+        TRAVIAN_EMAIL = ""
+        TRAVIAN_PASSWORD = ""
+    settings = _SettingsFallback()
 
-# === ENV HANDLING ===
-
-def ensure_env_exists(interactive=True):
-    env_path = Path(__file__).resolve().parents[3] / ".env"
-
-    def ask_and_create_env():
-        if not interactive:
-            raise RuntimeError("Missing .env file and no interactive mode allowed.")
+# === Credential handling (YAML-only) ===
+def _get_credentials(interactive: bool = True) -> tuple[str, str]:
+    # Read from YAML config and normalize whitespace
+    email = (getattr(settings, "TRAVIAN_EMAIL", "") or "").strip()
+    password = (getattr(settings, "TRAVIAN_PASSWORD", "") or "").strip()
+    if (not email or not password) and interactive:
+        print("No credentials in config.yaml. Please enter them now (not saved to disk).")
         email = input("Enter your Travian email: ").strip()
         password = input("Enter your Travian password: ").strip()
-        with open(env_path, "w") as f:
-            f.write(f"TRAVIAN_EMAIL={email}\n")
-            f.write(f"TRAVIAN_PASSWORD={password}\n")
-        print(f"✅ .env file created at {env_path}")
-
-    if not env_path.exists():
-        print(f"❌ .env file not found at {env_path}")
-        ask_and_create_env()
-    else:
-        load_dotenv(dotenv_path=env_path)
-        email = os.getenv("TRAVIAN_EMAIL")
-        password = os.getenv("TRAVIAN_PASSWORD")
-        if not email or not password:
-            print(f"❌ .env file exists but is incomplete at {env_path}")
-            ask_and_create_env()
-        else:
-            print(f"✅ .env file loaded successfully.")
-
-    load_dotenv(dotenv_path=env_path)
+    if not email or not password:
+        raise RuntimeError("Missing credentials. Set TRAVIAN_EMAIL and TRAVIAN_PASSWORD in config.yaml or run interactively.")
+    return email, password
 
 def generate_code_pair():
     verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b'=').decode()
@@ -48,9 +37,12 @@ def login_to_lobby(email, password):
     session = requests.Session()
     headers = {
         "Content-Type": "application/json",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
         "Origin": "https://www.travian.com",
         "Referer": "https://www.travian.com/",
-        "User-Agent": "Mozilla/5.0",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        "Connection": "keep-alive",
     }
 
     login_url = "https://identity.service.legends.travian.info/provider/login?client_id=HIaSfC2LNQ1yXOMuY7Pc2uIH3EqkAi26"
@@ -61,7 +53,16 @@ def login_to_lobby(email, password):
         "code_challenge_method": "S256"
     }
     login_resp = session.post(login_url, json=login_payload, headers=headers)
-    login_resp.raise_for_status()
+    try:
+        login_resp.raise_for_status()
+    except requests.HTTPError as e:
+        # Surface server error text to help diagnose credential/header issues
+        detail = ''
+        try:
+            detail = f" — {login_resp.text[:200]}" if login_resp.text else ''
+        except Exception:
+            pass
+        raise requests.HTTPError(f"{e}{detail}")
     code = login_resp.json().get("code")
 
     auth_url = "https://lobby.legends.travian.com/api/auth/code"
@@ -138,11 +139,7 @@ def login_to_server(session, avatars, selection=None, interactive=True):
 
 def login(email=None, password=None, server_selection=None, interactive=True):
     if email is None or password is None:
-        ensure_env_exists(interactive=interactive)
-        email = os.getenv("TRAVIAN_EMAIL")
-        password = os.getenv("TRAVIAN_PASSWORD")
-        if not email or not password:
-            raise RuntimeError("Missing TRAVIAN_EMAIL or TRAVIAN_PASSWORD.")
+        email, password = _get_credentials(interactive=interactive)
 
     session = login_to_lobby(email, password)
     avatars = get_avatars(session)
@@ -152,7 +149,8 @@ def login(email=None, password=None, server_selection=None, interactive=True):
 # === TEST ===
 
 def main():
-    session = login_to_lobby(os.getenv("TRAVIAN_EMAIL"), os.getenv("TRAVIAN_PASSWORD"))
+    email, password = _get_credentials(interactive=True)
+    session = login_to_lobby(email, password)
     avatars = get_avatars(session)
     server_session, server_url = login_to_server(session, avatars)
 

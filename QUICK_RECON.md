@@ -1,0 +1,321 @@
+# Travian Bot — Quick Code Recon
+
+- Scanned at: 2025-09-07T17:16:01
+- Base path: /mnt/data/travian_bot_baseline
+
+## Top-level structure
+- dir  .git  (260 bytes)
+- dir  API_based_automations  (60 bytes)
+- dir  docs  (60 bytes)
+- dir  selenium_UI based_exploits  (120 bytes)
+- dir  venv  (160 bytes)
+- file  .env  (74 bytes)
+- file  .gitignore  (1038 bytes)
+- file  README.md  (5409 bytes)
+
+## Python packages (dirs with __init__.py)
+- API_based_automations/travian_bot/analysis
+- API_based_automations/travian_bot/analysis/tile_analysis
+- API_based_automations/travian_bot/features/map_scanning
+- API_based_automations/travian_bot/features/oasis
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/builder
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/tests
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/certifi
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/charset_normalizer
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/charset_normalizer/cli
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/dotenv
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/idna
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/cli
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/commands
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/distributions
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/index
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/locations
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/metadata
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/metadata/importlib
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/models
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/network
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/operations
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/operations/build
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/operations/install
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/req
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/resolution
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/resolution/legacy
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/resolution/resolvelib
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/utils
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/vcs
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/cachecontrol
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/cachecontrol/caches
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/certifi
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/dependency_groups
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/distlib
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/distro
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/idna
+- … (+244 more)
+
+## Potential entrypoints (`if __name__ == "__main__"`)
+- API_based_automations/travian_bot/core/tile_scanner.py
+- API_based_automations/travian_bot/features/farm_lists/farm_list_raider.py
+- API_based_automations/travian_bot/features/farm_lists/manage_farm_lists.py
+- API_based_automations/travian_bot/features/oasis/oasis_raiding_thread.py
+- API_based_automations/travian_bot/identity_handling/identity_manager.py
+- API_based_automations/travian_bot/identity_handling/login.py
+- API_based_automations/travian_bot/launcher.py
+- API_based_automations/travian_bot/oasis_raiding_from_scan_list_main.py
+- API_based_automations/travian_bot/proof_of_concepts/check_sum_attack_breaking_script.py
+- API_based_automations/travian_bot/proof_of_concepts/debug_hero_page.py
+- API_based_automations/travian_bot/proof_of_concepts/debug_hero_raiding.py
+- API_based_automations/travian_bot/proof_of_concepts/debug_tile_details.py
+- API_based_automations/travian_bot/proof_of_concepts/get_oasis_troops_calc_defense_power.py
+- API_based_automations/travian_bot/proof_of_concepts/get_troops_simple.py
+- API_based_automations/travian_bot/raid_list_main.py
+- API_based_automations/travian_bot/refactor_attempt/client.py
+- API_based_automations/travian_bot/refactor_attempt/example.py
+- API_based_automations/travian_bot/scan_map.py
+- API_based_automations/travian_bot/setup_identity.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/__init__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/diagnose.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/charset_normalizer/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/charset_normalizer/cli/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/dotenv/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/cachecontrol/_cmd.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/dependency_groups/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/dependency_groups/_lint_dependency_groups.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/dependency_groups/_pip_wrapper.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/distlib/scripts.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/distro/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/distro/distro.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/packaging/_musllinux.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/platformdirs/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/pygments/unistring.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/requests/certs.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/requests/help.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/rich/__init__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/rich/__main__.py
+
+## Files defining a `main()` function
+- API_based_automations/travian_bot/core/tile_scanner.py
+- API_based_automations/travian_bot/features/farm_lists/farm_list_raider.py
+- API_based_automations/travian_bot/features/farm_lists/manage_farm_lists.py
+- API_based_automations/travian_bot/identity_handling/login.py
+- API_based_automations/travian_bot/launcher.py
+- API_based_automations/travian_bot/oasis_raiding_from_scan_list_main.py
+- API_based_automations/travian_bot/proof_of_concepts/check_sum_attack_breaking_script.py
+- API_based_automations/travian_bot/proof_of_concepts/debug_hero_page.py
+- API_based_automations/travian_bot/proof_of_concepts/debug_hero_raiding.py
+- API_based_automations/travian_bot/proof_of_concepts/debug_tile_details.py
+- API_based_automations/travian_bot/proof_of_concepts/get_oasis_troops_calc_defense_power.py
+- API_based_automations/travian_bot/proof_of_concepts/get_troops_simple.py
+- API_based_automations/travian_bot/refactor_attempt/example.py
+- API_based_automations/travian_bot/scan_map.py
+- API_based_automations/travian_bot/setup_identity.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/__init__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/__init__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/cli/main.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/main.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/cachecontrol/_cmd.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/dependency_groups/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/dependency_groups/_lint_dependency_groups.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/dependency_groups/_pip_wrapper.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/distro/distro.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/platformdirs/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/requests/help.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/requests/help.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/tqdm/cli.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/__init__.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/_internal/__init__.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/_internal/cli/main.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/_internal/main.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/_vendor/cachecontrol/_cmd.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/_vendor/dependency_groups/__main__.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/_vendor/dependency_groups/_lint_dependency_groups.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/_vendor/dependency_groups/_pip_wrapper.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/_vendor/distro/distro.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/_vendor/platformdirs/__main__.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py
+
+## Notable modules (by name heuristic)
+- API_based_automations/travian_bot/analysis/full_scan_oasis_analysis.py
+- API_based_automations/travian_bot/analysis/tile_analysis/oasis.py
+- API_based_automations/travian_bot/core/database_json_scan_utils.py
+- API_based_automations/travian_bot/core/database_raid_config.py
+- API_based_automations/travian_bot/core/full_map_scanner.py
+- API_based_automations/travian_bot/core/hero_manager.py
+- API_based_automations/travian_bot/core/hero_runner.py
+- API_based_automations/travian_bot/core/tile_scanner.py
+- API_based_automations/travian_bot/features/farm_lists/farm_list_raider.py
+- API_based_automations/travian_bot/features/farm_lists/manage_farm_lists.py
+- API_based_automations/travian_bot/features/hero/hero_operations.py
+- API_based_automations/travian_bot/features/hero/hero_raiding_thread.py
+- API_based_automations/travian_bot/features/map_scanning/__init__.py
+- API_based_automations/travian_bot/features/map_scanning/scan_map.py
+- API_based_automations/travian_bot/features/oasis/__init__.py
+- API_based_automations/travian_bot/features/oasis/oasis_raiding_thread.py
+- API_based_automations/travian_bot/features/oasis/raider.py
+- API_based_automations/travian_bot/features/oasis/validator.py
+- API_based_automations/travian_bot/features/raiding/reset_raid_plan.py
+- API_based_automations/travian_bot/features/raiding/setup_interactive_plan.py
+- API_based_automations/travian_bot/identity_handling/faction_utils.py
+- API_based_automations/travian_bot/identity_handling/identity_builder.py
+- API_based_automations/travian_bot/identity_handling/identity_helper.py
+- API_based_automations/travian_bot/identity_handling/identity_manager.py
+- API_based_automations/travian_bot/identity_handling/login.py
+- API_based_automations/travian_bot/launcher.py
+- API_based_automations/travian_bot/oasis_raiding_from_scan_list_main.py
+- API_based_automations/travian_bot/proof_of_concepts/debug_hero_page.py
+- API_based_automations/travian_bot/proof_of_concepts/debug_hero_raiding.py
+- API_based_automations/travian_bot/proof_of_concepts/get_oasis_troops_calc_defense_power.py
+- API_based_automations/travian_bot/raid_list_main.py
+- API_based_automations/travian_bot/scan_map.py
+- API_based_automations/travian_bot/setup_identity.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/certifi/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/charset_normalizer/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/charset_normalizer/cli/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/dotenv/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/dotenv/main.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/__pip-runner__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/cli/main.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/cli/main_parser.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_internal/main.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/certifi/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/dependency_groups/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/distro/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/platformdirs/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/pygments/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/pygments/scanner.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/pip/_vendor/rich/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/tqdm/__main__.py
+- API_based_automations/travian_bot/venv/lib/python3.13/site-packages/tqdm/_main.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/certifi/__main__.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/charset_normalizer/__main__.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/charset_normalizer/cli/__main__.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/dotenv/__main__.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/dotenv/main.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/__main__.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/__pip-runner__.py
+- API_based_automations/travian_bot/venv/lib64/python3.13/site-packages/pip/_internal/cli/main.py
+- … (+51 more)
+
+## Config & Env files
+**Env:**
+- .env
+**Config:**
+- API_based_automations/travian_bot/analysis/oasis_raiding_with_possible_losses_troop_config.json
+- API_based_automations/travian_bot/database/saved_raid_plan.json
+- API_based_automations/travian_bot/database/identity.json
+- API_based_automations/travian_bot/database/full_map_scans/(-75_-76)/full_map_scan_20250907_150949.json
+- API_based_automations/travian_bot/database/full_map_scans/(-75_-76)/full_map_scan_20250907_141622.json
+- API_based_automations/travian_bot/database/full_map_scans/(-75_-76)/full_map_scan_20250907_155113.json
+- API_based_automations/travian_bot/database/raid_plans/raid_plan_village_0.json
+- API_based_automations/travian_bot/database/unoccupied_oases/(-75_-76)/unoccupied_oases_20250907_141622.json
+- API_based_automations/travian_bot/database/unoccupied_oases/(-75_-76)/unoccupied_oases_20250907_155113.json
+- API_based_automations/travian_bot/database/unoccupied_oases/(-75_-76)/unoccupied_oases_20250907_150950.json
+- API_based_automations/travian_bot/database/farm_lists/https___ts2.x1.international.travian.com_.json
+
+## Dependencies
+- `API_based_automations/travian_bot/requirements.txt` (4 lines)
+  - beautifulsoup4==4.13.4
+  - python-dotenv==1.1.0
+  - Requests==2.32.3
+  - tqdm==4.67.1
+
+## TODOs / FIXMEs (first hits per file)
+- **API_based_automations/travian_bot/core/hero_manager.py**
+  - L99: mission_return_time=None,  # TODO: Extract from mission info if available
+  - L100: mission_target=None,  # TODO: Extract from mission info if available
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/typing_extensions.py**
+  - L3319: # TODO: Use inspect.VALUE here, and make the annotations lazily evaluated
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/dammit.py**
+  - L86: # TODO-TYPING: The Pattern type here could use more refinement, but it's tricky.
+  - L880: TODO: Since this is only used to convert smart quotes, it
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/element.py**
+  - L1063: # TODO-TYPING: "There is no syntax to indicate optional or
+  - L1320: # TODO-TYPING This should be SupportsIndex|slice but SupportsIndex
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/filter.py**
+  - L220: # TODO-TYPING: All MatchRule objects also have an attribute
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/builder/_html5lib.py**
+  - L195: # TODO: Why is the parser 'html.parser' here? Using
+  - L201: # TODO: What are **kwargs exactly? Should they be passed in
+  - L258: # TODO: This code is not covered by the BS4 tests, and
+  - L338: # TODO-TYPING: typeshed stubs are incorrect about this;
+  - L378: # TODO This has O(n^2) performance, for input like
+  - L544: # TODO-COVERAGE: This code has no test coverage and
+  - L565: # TODO-TYPING: typeshed stubs are incorrect about this;
+  - L570: # TODO-TYPING: typeshed stubs are incorrect about this;
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/builder/__init__.py**
+  - L225: # TODO: store_line_numbers is probably irrelevant now that
+  - L600: #: TODO: Arguably <noscript> could go here but it seems
+  - L652: # TODO: This cast will fail in the (very unlikely) scenario
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/builder/_htmlparser.py**
+  - L154: # TODO: handle namespaces here?
+  - L233: # TODO: This was originally a workaround for a bug in
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/builder/_lxml.py**
+  - L176: # TODO: Issue a warning if parser is present but not a
+  - L243: # TODO: This is a workaround for
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/tests/test_tag.py**
+  - L223: # TODO: This code is in the builder and should be tested there.
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/tests/test_builder_registry.py**
+  - L30: # TODO: Split out the lxml and html5lib tests into their own classes
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/bs4/tests/test_tree.py**
+  - L1058: # TODO: OK but what happens?
+  - L1095: # TODO: OK but what does it look like?
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/charset_normalizer/legacy.py**
+  - L9: # TODO: remove this check when dropping Python 3.7 support
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/tqdm/std.py**
+  - L1442: # TODO: private method
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/tqdm/gui.py**
+  - L26: # TODO: @classmethod: write() on GUI?
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/tqdm/rich.py**
+  - L74: # TODO: @classmethod: write()?
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/tqdm/tk.py**
+  - L31: # TODO: @classmethod: write()?
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/tqdm/__init__.py**
+  - L3: from .cli import main  # TODO: remove in v5.0.0
+  - L4: from .gui import tqdm as tqdm_gui  # TODO: remove in v5.0.0
+  - L5: from .gui import trange as tgrange  # TODO: remove in v5.0.0
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/tqdm/cli.py**
+  - L117: # TODO: add custom support for some of the following?
+  - L125: TODO: find out why this is needed.
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/tqdm/utils.py**
+  - L9: # TODO consider using wcswidth third-party package for 0-width characters
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/urllib3/exceptions.py**
+  - L306: # TODO(t-8ch): Stop inheriting from AssertionError in v2.0.
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/urllib3/_base_connection.py**
+  - L20: # TODO: Remove this in favor of a better
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/urllib3/response.py**
+  - L782: # FIXME: Ideally we'd like to include the url in the ReadTimeoutError but
+  - L787: # FIXME: Is there a better way to differentiate between SSLErrors?
+  - L1005: # TODO make sure to initially read enough data to get past the headers
+  - L1051: # FIXME, this method's type doesn't say returning None is possible
+  - L1219: # FIXME: Rewrite this method and make it a class with a better structured logic.
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/urllib3/connectionpool.py**
+  - L578: # TODO: Add optional support for socket.gethostbyname checking.
+  - L1095: # TODO revise this, see https://github.com/urllib3/urllib3/issues/2791
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/urllib3/connection.py**
+  - L330: # TODO: Fix tunnel so it doesn't depend on self.sock state.
+  - L436: # object later. TODO: Remove this in favor of a real
+  - L561: # TODO should we implement it everywhere?
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/urllib3/util/url.py**
+  - L454: # TODO: Remove this when we break backwards compatibility.
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/urllib3/util/response.py**
+  - L99: # FIXME: Can we do this somehow without accessing private httplib _method?
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/urllib3/util/request.py**
+  - L229: # File-like object, TODO: use seek() and tell() for length?
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/urllib3/http2/__init__.py**
+  - L38: # TODO: Offer 'http/1.1' as well, but for testing purposes this is handy.
+- **API_based_automations/travian_bot/venv/lib/python3.13/site-packages/urllib3/http2/connection.py**
+  - L144: # TODO SKIPPABLE_HEADERS from urllib3 are ignored.
+  - L234: # TODO: Arbitrary read value.
+  - L282: # TODO this is often present from upstream.
+  - L325: # TODO: This is a woefully incomplete response object, but works for non-streaming.
+  - L332: decode_content: bool = False,  # TODO: support decoding
+
+## Likely primary launcher candidates
+- API_based_automations/travian_bot/launcher.py
