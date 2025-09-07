@@ -62,6 +62,9 @@ Run headless utilities without the interactive launcher.
 - Start a fast map scan (humanizer disabled) for village index 0 with radius 25:
   - `python cli.py scan --village 0 --radius 25 --fast`
 
+- Fast scan and immediately extract unoccupied oases to `database/unoccupied_oases/(x_y)/...`:
+  - `python cli.py scan --village 0 --radius 25 --fast --extract`
+
 The scan writes to `database/full_map_scans/(x_y)/full_map_scan_*.json` and shows a progress bar.
 
 ## Usage
