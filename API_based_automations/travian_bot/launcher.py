@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from core.report_checker import process_ready_pendings
+from features.defense.attack_detector import run_attack_detector_thread
 
 # === CONFIG (centralized) ===
 try:
@@ -241,6 +242,74 @@ def handle_identity_management():
     else:
         print("❌ Invalid choice.")
 
+
+def _write_config_yaml(updates: dict):
+    """Naive updater for config.yaml keys (top-level)."""
+    import yaml
+    path = Path("config.yaml")
+    try:
+        data = {}
+        if path.exists():
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        data.update(updates or {})
+        path.write_text(yaml.dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+        print("✅ Saved changes to config.yaml")
+    except Exception as e:
+        print(f"❌ Could not write config.yaml: {e}")
+
+
+def tools_menu():
+    """Menu for tools & detectors (e.g., attack detector)."""
+    while True:
+        print("""
+🛠️ Tools & Detectors
+[1] Toggle Attack Detector (enable/disable)
+[2] Set Discord Webhook URL
+[3] Test Discord Notification (with screenshot)
+[4] Back to main menu
+""")
+        sel = input("Select an option: ").strip()
+        if sel == "1":
+            cur = bool(getattr(settings, "ATTACK_DETECTOR_ENABLE", False))
+            new = not cur
+            _write_config_yaml({"ATTACK_DETECTOR_ENABLE": new})
+            print(f"Attack Detector is now {'ENABLED' if new else 'DISABLED'}")
+            # reflect in current session settings
+            try:
+                settings.ATTACK_DETECTOR_ENABLE = new
+            except Exception:
+                pass
+        elif sel == "2":
+            url = input("Enter Discord webhook URL: ").strip()
+            if url:
+                _write_config_yaml({"ATTACK_DETECTOR_DISCORD_WEBHOOK": url})
+                try:
+                    settings.ATTACK_DETECTOR_DISCORD_WEBHOOK = url
+                except Exception:
+                    pass
+        elif sel == "3":
+            # Attempt to send a test to webhook (with optional screenshot)
+            url = getattr(settings, "ATTACK_DETECTOR_DISCORD_WEBHOOK", "")
+            if not url:
+                print("❌ No webhook configured.")
+                continue
+            try:
+                import pyautogui
+                from features.defense.attack_detector import _send_discord  # type: ignore
+                shot = None
+                try:
+                    shot = pyautogui.screenshot()
+                except Exception:
+                    pass
+                ok = _send_discord(url, "🔔 Test notification from Travian bot", shot)
+                print("✅ Sent" if ok else "❌ Failed to send")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+        elif sel == "4":
+            return
+        else:
+            print("❌ Invalid option.")
+
 def run_hero_operations(api: TravianAPI):
     """Run hero-specific operations including checking status and sending to suitable oases."""
     run_hero_ops(api)
@@ -368,6 +437,7 @@ def main():
     print("9) Hero Operations")
     print("10) Identity & Villages")
     print("11) Test Hero Raiding Thread (Standalone)")
+    print("12) Tools & Detectors")
     
     print("\n" + "="*40)
 
@@ -460,6 +530,15 @@ def main():
         checker_thread = threading.Thread(target=process_ready_pendings, args=(api, 60), name="ReportChecker", daemon=True)
         checker_thread.start()
         print("[Main] ReportChecker started (daemon).", flush=True)
+        # Start attack detector if enabled
+        try:
+            if bool(getattr(settings, "ATTACK_DETECTOR_ENABLE", False)):
+                run_attack_detector_thread(settings)
+                print("[Main] AttackDetector started (daemon).", flush=True)
+                _log_info("AttackDetector started (daemon).")
+        except Exception as e:
+            print(f"[Main] ⚠️ Could not start AttackDetector: {e}", flush=True)
+            _log_warn(f"Could not start AttackDetector: {e}")
         first_cycle = True
         print("[Main] ✅ Entering Full Auto cycle loop…", flush=True)
 
@@ -612,6 +691,8 @@ def main():
     elif choice == "11":
         print("\n🦸 Testing Hero Raiding Thread (Standalone)...")
         run_hero_raiding_thread(api)
+    elif choice == "12":
+        tools_menu()
     else:
         print("❌ Invalid choice.")
 

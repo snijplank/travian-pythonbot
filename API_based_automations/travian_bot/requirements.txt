@@ -1,4 +1,9 @@
 beautifulsoup4==4.13.4
 Requests==2.32.3
 tqdm==4.67.1
+pyautogui==0.9.54
+Pillow==10.4.0
+easyocr==1.7.2
+opencv-python-headless==4.10.0.84
+numpy==2.0.2
 PyYAML==6.0.2
