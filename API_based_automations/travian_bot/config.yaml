@@ -125,3 +125,10 @@ hero_adventures:
   # Background watcher poll interval and random jitter (seconds).
   HERO_ADVENTURE_POLL_INTERVAL_SEC: 90
   HERO_ADVENTURE_RANDOM_JITTER_SEC: 45
+
+building_guard:
+  # Wait/retry building upgrades when resources are insufficient or queue is busy.
+  BUILD_GUARD_ENABLE: true
+  BUILD_GUARD_MAX_RETRIES: 5
+  BUILD_GUARD_WAIT_MIN_SEC: 60
+  BUILD_GUARD_WAIT_MAX_SEC: 180
