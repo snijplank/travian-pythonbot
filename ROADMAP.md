@@ -79,6 +79,40 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
   - Fallback via HTML‑form/URL submit; debug dumps bij fouten
   - Volgende stap: resultaten loggen (loot/XP) voor rapportage
 
+### 5.1.1 Hero Raider loskoppelen van de main cycle (voorstel)
+Doel: de Hero Raider onafhankelijk laten plannen/uitvoeren, zodat de main cycle niet langer de timing of uitvoering bepaalt.
+
+- [ ] Dedicated scheduler voor Hero Raider (aanbevolen – kleinste wijziging)
+  - Eigen interval + jitter (bijv. `HERO_RAID_INTERVAL_SEC`, `HERO_RAID_JITTER_SEC`)
+  - Health‑gates en mission‑gates (min health, not on mission)
+  - Backoff/cooldown bij SEND‑fouten of recente verliesrapporten
+  - Locking/guard: nooit overlappende hero‑runs
+  - Metrics + logging separaat (hero_* counters)
+
+- [ ] Event‑driven aanvullingen
+  - Trigger onmiddellijk na ‘oasis scan’ of ‘raid plan update’
+  - Trigger na binnenkomst van relevante report(s) (loot/verlies), met minimum tussenpoze
+
+- [ ] Alternatief: aparte worker/proces
+  - Losse entrypoint `hero_raider_worker.py` met dezelfde scheduler
+  - Draaien onder `systemd`/tmux/pm2; deelt login/session of voert eigen login uit
+  - Pro: volledige isolatie van de main loop; Con: extra orkestratie
+
+- [ ] Config & toggles
+  - `HERO_RAID_ENABLE: true|false`
+  - `HERO_RAID_INTERVAL_SEC`, `HERO_RAID_JITTER_SEC`
+  - `HERO_RAID_MIN_HEALTH`, `HERO_RAID_MAX_DISTANCE`, `HERO_RAID_COOLDOWN_SEC`
+
+- [ ] MVP implementatie (v1)
+  - Nieuwe hero‑scheduler thread met eigen timer en jitter
+  - Respecteer health/mission gates; geen overlap; basis logging/metrics
+  - Uitgeschakeld door default; enable via YAML
+
+- [ ] v2 verbeteringen
+  - Event‑triggers (na report, na scan)
+  - Slimme target‑selectie met baseline (avg_loss_pct, loot_total)
+  - Notificaties bij exceptions/hero dood/low‑health
+
 ## 9️⃣ Progressive Tasks (nieuw)
 **Doel: automatisch claimen van openstaande beloningen.**
 - [x] Parse `/tasks` (inline JSON en data-attributes)

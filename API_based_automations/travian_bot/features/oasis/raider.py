@@ -78,8 +78,47 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
         logging.error("Could not fetch troops. Exiting.")
         return sent_raids
 
-    # Process targets starting from the closest oases first
-    ordered_targets = sorted(oases.items(), key=lambda it: it[1].get("distance", float("inf")))
+    # Build scheduling view: due based on last_sent and interval+jitter
+    try:
+        from config.config import settings as _cfg
+        tgt_interval = int(getattr(_cfg, 'OASIS_TARGET_INTERVAL_MIN_SEC', 600))
+        jitter = int(getattr(_cfg, 'OASIS_INTERVAL_JITTER_SEC', 60))
+        cooldown_lost = int(getattr(_cfg, 'OASIS_COOLDOWN_ON_LOST_SEC', 1800))
+    except Exception:
+        tgt_interval, jitter, cooldown_lost = 600, 60, 1800
+
+    now = time.time()
+    sched = []
+    for coords, tile in oases.items():
+        x_str, y_str = coords.split("_")
+        x_i, y_i = int(x_str), int(y_str)
+        key = f"({x_i},{y_i})"
+        dist = tile.get("distance", float("inf"))
+        # Cooldown on recent loss
+        if use_learning and ls:
+            try:
+                base = ls.get_baseline(key)
+                last_r = (base or {}).get("last_result")
+                last_ts = (base or {}).get("last_ts")
+                if last_r == 'lost' and isinstance(last_ts, str):
+                    # Convert ISO to epoch
+                    try:
+                        import datetime as _dt
+                        t = _dt.datetime.strptime(last_ts, "%Y-%m-%dT%H:%M:%SZ")
+                        if (now - t.timestamp()) < cooldown_lost:
+                            # Skip for now
+                            continue
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        last_sent = ls.get_last_sent(key) if (use_learning and ls) else None
+        # Next due with jitter window centered around tgt_interval
+        due_ts = (last_sent or 0) + tgt_interval
+        sched.append((max(0, due_ts - now), coords, dist))
+    # Sort by due first (overdue first), then by distance
+    sched.sort(key=lambda t: (t[0], t[2]))
+    ordered_targets = [(coords, oases[coords]) for _, coords, _ in sched]
     for coords, tile in ordered_targets:
         # Check distance from stored value
         distance = tile["distance"]
@@ -159,6 +198,12 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
         if success:
             logging.info(f"✅ Raid sent to ({x}, {y}) - Distance: {distance:.1f} tiles")
             add_sent(1)
+            # Record last sent timestamp for scheduler
+            if use_learning and ls:
+                try:
+                    ls.set_last_sent(key)
+                except Exception:
+                    pass
             # Log één pending entry voor deze raid zodat de report checker de multiplier kan bijstellen.
             # Omdat we hier een combinatie van units sturen, labelen we dit als 'mixed'.
             if use_learning:

@@ -157,6 +157,14 @@ progressive_tasks:
   # Refresh hero HUD after each collect (matches UI behavior).
   PROGRESSIVE_TASKS_REFRESH_HUD: true
 
+oasis_scheduler:
+  # Target interval between raids per oasis (seconds). Aim ~10 minutes.
+  OASIS_TARGET_INTERVAL_MIN_SEC: 600
+  # Random jitter added/subtracted to target interval (seconds).
+  OASIS_INTERVAL_JITTER_SEC: 60
+  # Cooldown after a LOST report before raiding the same target again (seconds).
+  OASIS_COOLDOWN_ON_LOST_SEC: 1800
+
 building_guard:
   # Wait/retry building upgrades when resources are insufficient or queue is busy.
   BUILD_GUARD_ENABLE: true

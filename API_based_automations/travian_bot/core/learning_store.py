@@ -138,3 +138,21 @@ class LearningStore:
         except Exception:
             pass
         return out
+
+    # --- Scheduling helpers (optional) ---
+    def set_last_sent(self, key: str, ts: Optional[float] = None) -> None:
+        try:
+            if ts is None:
+                ts = time.time()
+            s = self.data.setdefault(key, {"multiplier": 1.0})
+            s["last_sent_ts"] = float(ts)
+            self._save()
+        except Exception:
+            pass
+
+    def get_last_sent(self, key: str) -> Optional[float]:
+        try:
+            v = self.data.get(key, {}).get("last_sent_ts")
+            return float(v) if v is not None else None
+        except Exception:
+            return None
