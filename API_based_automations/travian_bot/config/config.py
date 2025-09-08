@@ -98,6 +98,7 @@ class Settings:
     ESCORT_UNIT_PRIORITY: list[str] | None = None
 
     RESERVED: dict | None = None
+    NEW_VILLAGE_PRESET_ENABLE: bool = False
 
     # Learning loop (configurable)
     LEARNING_MIN_MUL: float = 0.8
@@ -183,6 +184,7 @@ class Settings:
             "LOG_DIR": self.LOG_DIR,
             "ESCORT_UNIT_PRIORITY": self.ESCORT_UNIT_PRIORITY or [],
             "RESERVED": self.RESERVED or {},
+            "NEW_VILLAGE_PRESET_ENABLE": self.NEW_VILLAGE_PRESET_ENABLE,
             "LEARNING_MIN_MUL": self.LEARNING_MIN_MUL,
             "LEARNING_MAX_MUL": self.LEARNING_MAX_MUL,
             "LEARNING_LOSS_THRESHOLD_LOW": self.LEARNING_LOSS_THRESHOLD_LOW,
@@ -268,6 +270,7 @@ def load_settings(env_prefix: str = "") -> Settings:
 
     reserved = g("RESERVED", {}) or {}
     s.RESERVED = reserved if isinstance(reserved, dict) else {}
+    s.NEW_VILLAGE_PRESET_ENABLE = _as_bool(g("NEW_VILLAGE_PRESET_ENABLE", s.NEW_VILLAGE_PRESET_ENABLE), s.NEW_VILLAGE_PRESET_ENABLE)
 
     # Learning loop parameters
     def _as_float(val, default: float) -> float:

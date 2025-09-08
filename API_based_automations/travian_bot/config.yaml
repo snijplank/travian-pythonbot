@@ -63,6 +63,9 @@ raiding:
   - t8
   - t9
   - t10
+
+# Enable autoplan for building a new village following a standard preset.
+NEW_VILLAGE_PRESET_ENABLE: false
 learning:
   # Per-oasis escort multiplier learning and thresholds.
   # Lower bound for per-oasis escort multiplier.

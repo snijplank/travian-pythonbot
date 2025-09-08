@@ -17,6 +17,7 @@ from identity_handling.identity_helper import load_villages_from_identity
 from features.hero.hero_operations import run_hero_operations as run_hero_ops, print_hero_status_summary
 from features.hero.hero_raiding_thread import run_hero_raiding_thread
 from features.hero.hero_adventure_thread import run_hero_adventure_thread
+from features.build.new_village_preset import run_new_village_preset
 from features.hero.hero_adventure import maybe_start_adventure
 from core.hero_manager import HeroManager
 from datetime import datetime, timedelta, time as dtime
@@ -609,6 +610,15 @@ def main():
                 cycle_start_ts = time.time()
 
                 # --- Place your farming/oasis logic here (existing repo code) ---
+                # Optional: auto-run new village preset if explicitly toggled in YAML
+                try:
+                    if bool(getattr(settings, 'NEW_VILLAGE_PRESET_ENABLE', False)):
+                        villages = load_villages_from_identity()
+                        if villages:
+                            # Run only for newest/last village once per day (simple heuristic)
+                            run_new_village_preset(api, villages[-1])
+                except Exception as _p_e:
+                    _log_warn(f"New village preset run failed: {_p_e}")
                 # Try to start a hero adventure if conditions allow (low-latency)
                 try:
                     if bool(getattr(settings, 'HERO_ADVENTURE_ENABLE', True)):
