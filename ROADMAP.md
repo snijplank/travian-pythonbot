@@ -51,6 +51,13 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
   - Respecteer resource buffers en held‑status (bij lage health minder training)
   - Queue awareness: detecteer vol/looptijd; niet spammen
 
+### 4.1.1 Nieuw‑dorp preset (gerealiseerd)
+- [x] Standaard opbouwpreset (resources → infra → CP → militair → settlers → resources 5)
+- [x] Alleen draaien bij detectie van nieuw dorp (GraphQL villages vs state JSON)
+- [x] Best‑effort HTML‑parser voor bouw/upgrade knoppen (universeel over varianten)
+- [ ] Queue/resource awareness (niet spammen, wachten bij tekorten)
+- [ ] Server/taal‑fine‑tuning van building‑detectie
+
 ## 5️⃣ Integraties & Observability
 **Doel: meldingen en zichtbaarheid.**
 - [ ] Discord/Telegram: notificaties (cycle done, errors, hero dood, raids klaar)
@@ -60,10 +67,11 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
 ## 5.1 🦸 Held‑automatisering (nieuw)
 **Doel: held efficiënt inzetten zonder risico.**
 - [x] Hero status/raiding thread (aanwezig)
-- [ ] Held naar avonturen sturen (adventures)
-  - Detecteer beschikbare avonturen; prioriteer dichtbij/laag risico bij lage health
-  - Health‑guard: onder drempel geen avonturen/raids; optie om zalf toe te passen
-  - Log adventure resultaten (loot/XP) voor rapportage
+ - [x] Held naar avonturen sturen (adventures)
+  - Detectie via React viewData (GraphQL) op /hero/adventures (mapId, duration, difficulty)
+  - Achtergrondthread start automatisch kortste geschikte adventure (config: health/min/max duur/gevaar)
+  - Fallback via HTML‑form/URL submit; debug dumps bij fouten
+  - Volgende stap: resultaten loggen (loot/XP) voor rapportage
 
 ## 6️⃣ Scheduler & Multi-account
 **Doel: flexibel draaien met meerdere profielen.**
