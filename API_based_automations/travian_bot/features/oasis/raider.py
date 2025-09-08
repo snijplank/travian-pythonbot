@@ -80,10 +80,11 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
 
     # Build scheduling view: due based on last_sent and interval+jitter
     try:
-        from config.config import settings as _cfg
-        tgt_interval = int(getattr(_cfg, 'OASIS_TARGET_INTERVAL_MIN_SEC', 600))
-        jitter = int(getattr(_cfg, 'OASIS_INTERVAL_JITTER_SEC', 60))
-        cooldown_lost = int(getattr(_cfg, 'OASIS_COOLDOWN_ON_LOST_SEC', 1800))
+        # Use a different local name to avoid shadowing the module-level _cfg
+        from config.config import settings as _sched_cfg  # type: ignore
+        tgt_interval = int(getattr(_sched_cfg, 'OASIS_TARGET_INTERVAL_MIN_SEC', 600))
+        jitter = int(getattr(_sched_cfg, 'OASIS_INTERVAL_JITTER_SEC', 60))
+        cooldown_lost = int(getattr(_sched_cfg, 'OASIS_COOLDOWN_ON_LOST_SEC', 1800))
     except Exception:
         tgt_interval, jitter, cooldown_lost = 600, 60, 1800
 
