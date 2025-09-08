@@ -135,7 +135,8 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
         now_ts = time.time()
         keep: list[dict] = []
         for item in pendings:
-            key = item.get("oasis")            # "(x,y)"
+            # Generic key per target (coords like "(x,y)"), supports legacy 'oasis' field
+            key = item.get("target") or item.get("oasis")            # "(x,y)"
             code = item.get("unit", "mixed")   # "t1" etc
             base = int(item.get("recommended", item.get("sent", 0)) or 0)
             sent = int(item.get("sent", 0) or 0)
@@ -163,7 +164,7 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
             except Exception:
                 x = y = None
 
-            report = api.find_latest_oasis_report(x, y)
+            report = api.find_latest_report_by_coords(x, y)
             if not report:
                 # nog niet beschikbaar, later opnieuw proberen
                 logging.info(f"[ReportChecker] No report found yet for {key}; keep pending (age={age:.0f}s)")
@@ -260,7 +261,8 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
     if verbose:
         print(f"[RC] Starting report processing: {len(pendings)} pending item(s)…")
     for item in pendings:
-        key = item.get("oasis")            # "(x,y)"
+        # Generic key per target (coords like "(x,y)")
+        key = item.get("target") or item.get("oasis")            # "(x,y)"
         code = item.get("unit", "mixed")   # "t1" etc
         base = int(item.get("recommended", item.get("sent", 0)) or 0)
         sent = int(item.get("sent", 0) or 0)
@@ -285,7 +287,7 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
         except Exception:
             x = y = None
 
-        report = api.find_latest_oasis_report(x, y)
+        report = api.find_latest_report_by_coords(x, y)
         if not report:
             keep.append(item)
             if verbose:

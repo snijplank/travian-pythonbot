@@ -1344,6 +1344,10 @@ class TravianAPI:
                 return {"id": rid, "href": href, "html": html}
         return None
 
+    # Backwards-compatible generic alias (works for oasis or villages)
+    def find_latest_report_by_coords(self, x: int | None, y: int | None, tab: int | None = 1, scan_limit: int = 30) -> dict | None:
+        return self.find_latest_oasis_report(x, y, tab=tab, scan_limit=scan_limit)
+
     def _parse_hero_attack_from_html(self, html: str) -> int | None:
         """Best-effort parse of the hero's fighting strength (attack) from hero pages.
         Looks for common localized labels like Fighting strength / Vechtkracht / Kampfkraft, etc.

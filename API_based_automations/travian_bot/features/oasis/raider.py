@@ -24,7 +24,7 @@ def get_units_for_distance(distance, distance_ranges):
             return range_data["units"]
     return None
 
-def _append_pending(oasis_key: str, unit_code: str, recommended: int, sent: int) -> None:
+def _append_pending(target_key: str, unit_code: str, recommended: int, sent: int) -> None:
     path = Path("database/learning/pending.json")
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -32,7 +32,9 @@ def _append_pending(oasis_key: str, unit_code: str, recommended: int, sent: int)
     except Exception:
         data = []
     entry = {
-        "oasis": oasis_key,             # "(x,y)"
+        # Generic key for downstream processing; keep legacy 'oasis' for back-compat
+        "target": target_key,           # "(x,y)"
+        "oasis": target_key,            # legacy field; remove in a future cleanup
         "ts_sent": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "unit": unit_code,
         "recommended": int(recommended),

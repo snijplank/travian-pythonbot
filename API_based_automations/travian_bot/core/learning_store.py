@@ -94,10 +94,10 @@ class LearningStore:
         return m
 
     def get_baseline(self, key: str) -> dict:
-        """Return a baseline snapshot for an oasis coordinate key '(x,y)'.
+        """Return a baseline snapshot for a raid target key '(x,y)'.
 
         Includes attempts, successes, failures, last_result/ts/loss_pct,
-        average loss_pct over recent history, and multiplier.
+        average loss_pct over recent history, multiplier and total loot aggregate.
         """
         s = self.data.get(key, {}) or {}
         out = {
