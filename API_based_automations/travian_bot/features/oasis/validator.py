@@ -1,7 +1,7 @@
 from analysis.tile_analysis import analyze_tile
 import logging
 
-def is_valid_unoccupied_oasis(api, x, y):
+def is_valid_unoccupied_oasis(api, x, y, distance: float | None = None):
     """
     Checks if the oasis at (x, y) is unoccupied and has no animals.
     
@@ -15,13 +15,15 @@ def is_valid_unoccupied_oasis(api, x, y):
     
     # Must be an unoccupied oasis
     if tile_info['type'] != 'unoccupied_oasis':
-        logging.info(f"Skipping tile at ({x}, {y}) — Not an unoccupied oasis")
-        return False
+        suffix = f" — Distance: {distance:.1f} tiles" if isinstance(distance, (int, float)) else ""
+        logging.info(f"Skipping tile at ({x}, {y}) — Not an unoccupied oasis{suffix}")
+        return False, "not_unoccupied"
         
     # Check for animals (handle case where animals might be None)
     animals = tile_info.get('animals', {})
     if animals and any(animals.values()):
-        logging.info(f"Skipping oasis at ({x}, {y}) — Animals present: {animals}")
-        return False
+        suffix = f" — Distance: {distance:.1f} tiles" if isinstance(distance, (int, float)) else ""
+        logging.info(f"Skipping oasis at ({x}, {y}) — Animals present: {animals}{suffix}")
+        return False, "animals_present"
         
-    return True 
+    return True, "ok"

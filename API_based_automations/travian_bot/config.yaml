@@ -1,51 +1,124 @@
-WAIT_BETWEEN_CYCLES_MINUTES: 10
-JITTER_MINUTES: 10
-ENABLE_CYCLE_LIMITER: false
-DAILY_MAX_RUNTIME_MINUTES: 600
-DAILY_BLOCKS: 3
-LOG_LEVEL: INFO
-LOG_DIR: logs
-HUMAN_MIN_DELAY: 0.8
-HUMAN_MAX_DELAY: 2.8
-HUMAN_LONG_PAUSE_EVERY: 6
-HUMAN_LONG_PAUSE_MIN: 4.0
-HUMAN_LONG_PAUSE_MAX: 7.5
-OP_JITTER_MIN_SEC: 0.7
-OP_JITTER_MAX_SEC: 2.5
-MAPVIEW_PRE_ACTION_PROB: 0.35
-MAPVIEW_FARM_LIST_PROB: 0.25
-FARM_LIST_SUBSET_MIN: 1
-FARM_LIST_SUBSET_MAX: 3
-ATTACK_DETECTOR_ENABLE: true
-ATTACK_DETECTOR_DISCORD_WEBHOOK: https://discord.com/api/webhooks/1414390047721127946/ff-OZaV763t5HpeuNNK-knHAn6xv1U6dT_WgrWimh_0mFACspXr3-cuT82npPBEWl2_R
-ATTACK_DETECTOR_INTERVAL_BASE: 2.0
-ATTACK_DETECTOR_INTERVAL_JITTER: 6.0
-ATTACK_DETECTOR_COOLDOWN_SEC: 3600
-ATTACK_DETECTOR_OCR_LANGS:
-- en
-ATTACK_DETECTOR_GPU: false
-ATTACK_DETECTOR_SEND_SCREENSHOT: true
-ATTACK_DETECTOR_USE_HOTKEYS: false
-ATTACK_DETECTOR_REFRESH_COMBO: ''
-SKIP_FARM_LISTS_FIRST_RUN: false
-ESCORT_UNIT_PRIORITY:
-- t5
-- t3
-- t1
-- t2
-- t4
-- t6
-- t7
-- t8
-- t9
-- t10
-LEARNING_MIN_MUL: 0.8
-LEARNING_MAX_MUL: 2.5
-LEARNING_LOSS_THRESHOLD_LOW: 0.2
-LEARNING_LOSS_THRESHOLD_HIGH: 0.5
-LEARNING_STEP_UP_ON_LOST: 0.25
-LEARNING_STEP_UP_ON_HIGH_LOSS: 0.1
-LEARNING_STEP_DOWN_ON_LOW_LOSS: 0.1
-TRAVIAN_EMAIL: michaelsnijder@hotmail.com
-TRAVIAN_PASSWORD: Sjaaktrekhaak24
-SERVER_SELECTION: 0
+credentials:
+  # Credentials used for lobby login (kept locally; do not commit secrets to VCS).
+  TRAVIAN_EMAIL: michaelsnijder@hotmail.com
+  TRAVIAN_PASSWORD: Sjaaktrekhaak24
+cadence:
+  # Minutes to wait between automation cycles (base cadence).
+  WAIT_BETWEEN_CYCLES_MINUTES: 10
+  # Extra random offset in minutes added/subtracted each cycle to avoid patterns.
+  JITTER_MINUTES: 10
+  # Index of the game world in the lobby (0 = first entry shown in lobby).
+  SERVER_SELECTION: 0
+limiter:
+  # Enable a hard daily cap on total runtime (spread across blocks).
+  ENABLE_CYCLE_LIMITER: true
+  # Maximum minutes per day the bot may be active.
+  DAILY_MAX_RUNTIME_MINUTES: 600
+  # Split the day into N blocks; sleeps between blocks to reduce bursts.
+  DAILY_BLOCKS: 3
+logging:
+  # Log verbosity and destination directory.
+  # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  LOG_LEVEL: INFO
+  LOG_DIR: logs
+humanizer:
+  # Per-request think-time and occasional longer breaks (seconds).
+  # Lower bound for per-request think time (seconds).
+  HUMAN_MIN_DELAY: 0.8
+  # Upper bound for per-request think time (seconds).
+  HUMAN_MAX_DELAY: 2.8
+  # After this many requests, force a longer pause.
+  HUMAN_LONG_PAUSE_EVERY: 6
+  # Longer pause lower bound (seconds).
+  HUMAN_LONG_PAUSE_MIN: 4.0
+  # Longer pause upper bound (seconds).
+  HUMAN_LONG_PAUSE_MAX: 7.5
+operation:
+  # Small pauses before/after high-level actions (seconds).
+  # Jitter before/after large operations (seconds).
+  OP_JITTER_MIN_SEC: 0.7
+  OP_JITTER_MAX_SEC: 2.5
+map_and_farms:
+  # Neutral page views and farm-list subset selection for stealth.
+  # Probability (0..1) to open dorf1/2 before big actions.
+  MAPVIEW_PRE_ACTION_PROB: 0.35
+  # Probability (0..1) to open a dorf page before each farm-list launch.
+  MAPVIEW_FARM_LIST_PROB: 0.25
+  # Minimum number of farm lists to send this cycle (per village).
+  FARM_LIST_SUBSET_MIN: 1
+  # Maximum number of farm lists to send this cycle (per village).
+  FARM_LIST_SUBSET_MAX: 3
+raiding:
+  # Farm-list behavior and escort priority (t1..t10 for current tribe).
+  # If true, skip farm lists on the first cycle in Full Auto.
+  SKIP_FARM_LISTS_FIRST_RUN: false
+  ESCORT_UNIT_PRIORITY:
+  - t5
+  - t3
+  - t1
+  - t2
+  - t4
+  - t6
+  - t7
+  - t8
+  - t9
+  - t10
+learning:
+  # Per-oasis escort multiplier learning and thresholds.
+  # Lower bound for per-oasis escort multiplier.
+  LEARNING_MIN_MUL: 0.8
+  # Upper bound for per-oasis escort multiplier.
+  LEARNING_MAX_MUL: 2.5
+  # If losses <= LOW → nudge multiplier down.
+  LEARNING_LOSS_THRESHOLD_LOW: 0.2
+  # If losses > HIGH → nudge multiplier up.
+  LEARNING_LOSS_THRESHOLD_HIGH: 0.5
+  LEARNING_STEP_UP_ON_LOST: 0.25
+  LEARNING_STEP_UP_ON_HIGH_LOSS: 0.1
+  LEARNING_STEP_DOWN_ON_LOW_LOSS: 0.1
+
+attack_detector:
+  # OCR-based incoming-attack detector (Discord webhook notifications).
+  # Turn the detector ON/OFF (requires Discord webhook).
+  ATTACK_DETECTOR_ENABLE: true
+  # Discord webhook URL to send alerts to; leave empty to disable.
+  ATTACK_DETECTOR_DISCORD_WEBHOOK: https://discord.com/api/webhooks/1414390047721127946/ff-OZaV763t5HpeuNNK-knHAn6xv1U6dT_WgrWimh_0mFACspXr3-cuT82npPBEWl2_R
+  # Base polling interval (seconds) for screen checks.
+  ATTACK_DETECTOR_INTERVAL_BASE: 2.0
+  # Random extra seconds added to the base interval.
+  ATTACK_DETECTOR_INTERVAL_JITTER: 6.0
+  # Minimum seconds to wait between two notifications.
+  ATTACK_DETECTOR_COOLDOWN_SEC: 3600
+  # OCR languages (add your UI language for better detection).
+  ATTACK_DETECTOR_OCR_LANGS:
+  - en
+  # Use GPU for OCR if available (True/False).
+  ATTACK_DETECTOR_GPU: false
+  # Attach a screenshot to Discord alerts when possible (requires GUI).
+  ATTACK_DETECTOR_SEND_SCREENSHOT: true
+  # Press a refresh hotkey before reading the screen (requires GUI).
+  ATTACK_DETECTOR_USE_HOTKEYS: false
+  # Examples: f5, ctrl+r, command+r
+  ATTACK_DETECTOR_REFRESH_COMBO: ''
+
+reports:
+  # If false, the automated cycle will not process reports; use Tools menu to run manually.
+  PROCESS_REPORTS_IN_AUTOMATION: false
+  # Optional: minimal seconds to wait before attempting to read a report after sending.
+  REPORT_MIN_WAIT_SEC: 60
+  # Debug: log/dump report list pages to help diagnose matching issues.
+  REPORT_DEBUG_LOG: false
+  REPORT_DEBUG_DUMP: false
+
+hero_adventures:
+  # Automatically start hero adventures as soon as they appear.
+  HERO_ADVENTURE_ENABLE: true
+  # Minimal hero health percentage to allow adventures.
+  HERO_ADVENTURE_MIN_HEALTH: 40
+  # Skip adventures longer than this many minutes (0 = no limit).
+  HERO_ADVENTURE_MAX_DURATION_MIN: 180
+  # Allow adventures flagged as dangerous/hard.
+  HERO_ADVENTURE_ALLOW_DANGER: true
+  # Background watcher poll interval and random jitter (seconds).
+  HERO_ADVENTURE_POLL_INTERVAL_SEC: 90
+  HERO_ADVENTURE_RANDOM_JITTER_SEC: 45

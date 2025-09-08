@@ -47,6 +47,25 @@ def run_hero_operations(api):
     
     # Print hero status
     print_hero_status_summary(status)
+
+    # Offer to start an available hero adventure if possible
+    try:
+        if status.is_present and not status.is_on_mission:
+            adventures = api.list_hero_adventures() or []
+            if adventures:
+                # Prefer shortest duration
+                adventures.sort(key=lambda a: (a.get("duration_min") or 10_000))
+                first = adventures[0]
+                dmin = first.get("duration_min")
+                dtxt = f"{dmin} minutes" if isinstance(dmin, int) else "unknown duration"
+                ans = input(f"\nFound {len(adventures)} adventure(s). Start the shortest one now ({dtxt})? (y/n): ").strip().lower()
+                if ans == 'y':
+                    if api.start_hero_adventure(first):
+                        print("✅ Adventure started.")
+                    else:
+                        print("❌ Failed to start adventure.")
+    except Exception as e:
+        logging.info(f"[HeroOps] Could not handle adventures: {e}")
     
     # Load villages and let user select one
     villages = load_villages_from_identity()

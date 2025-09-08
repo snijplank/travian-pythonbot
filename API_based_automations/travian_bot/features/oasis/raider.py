@@ -69,7 +69,9 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
         logging.error("Could not fetch troops. Exiting.")
         return sent_raids
 
-    for coords, tile in oases.items():
+    # Process targets starting from the closest oases first
+    ordered_targets = sorted(oases.items(), key=lambda it: it[1].get("distance", float("inf")))
+    for coords, tile in ordered_targets:
         # Check distance from stored value
         distance = tile["distance"]
         if distance > max_raid_distance:
@@ -115,8 +117,9 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
             continue
 
         # Validate oasis is raidable
-        if not is_valid_unoccupied_oasis(api, x, y):
-            add_skip("invalid_oasis")
+        ok, why = is_valid_unoccupied_oasis(api, x, y, distance)
+        if not ok:
+            add_skip(f"invalid_oasis:{why}")
             continue
 
         # Prepare raid setup with all units in the combination

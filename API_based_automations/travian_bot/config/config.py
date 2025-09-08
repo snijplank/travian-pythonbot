@@ -29,8 +29,31 @@ def _load_yaml(filename: str) -> dict:
         return {}
 
 
+def _flatten_cfg(d: dict) -> dict:
+    """Recursively flatten a nested YAML dict so that leaf keys appear at the top level.
+    Later duplicates overwrite earlier ones (nested keys win over root when traversed in-order).
+    """
+    flat: dict = {}
+
+    def _walk(obj):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if isinstance(v, dict):
+                    _walk(v)
+                else:
+                    flat[k] = v
+        # ignore lists at top-level for flatten purposes
+
+    _walk(d or {})
+    # Also keep top-level keys (in case of non-dict values at root)
+    for k, v in (d or {}).items():
+        if not isinstance(v, dict):
+            flat.setdefault(k, v)
+    return flat
+
+
 def _get(cfg: dict, key: str, default):
-    # Only read from YAML, do not consider environment variables.
+    # Only read from YAML (flattened), do not consider environment variables.
     return cfg.get(key, default)
 
 
@@ -66,6 +89,7 @@ class Settings:
     ENABLE_CYCLE_LIMITER: bool = False
     DAILY_MAX_RUNTIME_MINUTES: int = 600   # 10h
     DAILY_BLOCKS: int = 3                  # split across the day
+    DAILY_VARIANCE_PCT: float = 0.0        # e.g., 0.1 for ±10% variance on daily cap
 
     # Logging
     LOG_LEVEL: str = "INFO"
@@ -113,6 +137,14 @@ class Settings:
     FARM_LIST_SUBSET_MIN: int = 1             # minimum number of farm lists to send per village
     FARM_LIST_SUBSET_MAX: int = 3             # maximum number of farm lists to send per village
 
+    # Limiter randomization & quiet windows
+    BLOCK_SIZE_MIN: int = 45                  # minutes; if >0, use random block size in [min,max]
+    BLOCK_SIZE_MAX: int = 200
+    REST_MIN_MINUTES: int = 30                # random rest minutes between blocks
+    REST_MAX_MINUTES: int = 90
+    QUIET_WINDOWS: list[str] | None = None    # e.g., ["01:00-06:00", "13:15-14:00"]
+    SKIP_CYCLE_PROB: float = 0.0              # chance (0..1) to skip an entire cycle
+
     # Attack detector (screen OCR → Discord)
     ATTACK_DETECTOR_ENABLE: bool = False
     ATTACK_DETECTOR_DISCORD_WEBHOOK: str = ""
@@ -125,6 +157,19 @@ class Settings:
     ATTACK_DETECTOR_USE_HOTKEYS: bool = False
     ATTACK_DETECTOR_REFRESH_COMBO: str = ""
 
+    # Reports debugging
+    REPORT_DEBUG_LOG: bool = False
+    REPORT_DEBUG_DUMP: bool = False
+    PROCESS_REPORTS_IN_AUTOMATION: bool = True
+
+    # Hero adventures
+    HERO_ADVENTURE_ENABLE: bool = True
+    HERO_ADVENTURE_MIN_HEALTH: int = 40       # % health required to go on adventure
+    HERO_ADVENTURE_MAX_DURATION_MIN: int = 180  # skip adventures longer than this (minutes), 0 = no limit
+    HERO_ADVENTURE_ALLOW_DANGER: bool = True  # if False, skip adventures marked as dangerous
+    HERO_ADVENTURE_POLL_INTERVAL_SEC: int = 90
+    HERO_ADVENTURE_RANDOM_JITTER_SEC: int = 45
+
     def as_dict(self) -> dict:
         return {
             "WAIT_BETWEEN_CYCLES_MINUTES": self.WAIT_BETWEEN_CYCLES_MINUTES,
@@ -133,6 +178,7 @@ class Settings:
             "ENABLE_CYCLE_LIMITER": self.ENABLE_CYCLE_LIMITER,
             "DAILY_MAX_RUNTIME_MINUTES": self.DAILY_MAX_RUNTIME_MINUTES,
             "DAILY_BLOCKS": self.DAILY_BLOCKS,
+            "DAILY_VARIANCE_PCT": self.DAILY_VARIANCE_PCT,
             "LOG_LEVEL": self.LOG_LEVEL,
             "LOG_DIR": self.LOG_DIR,
             "ESCORT_UNIT_PRIORITY": self.ESCORT_UNIT_PRIORITY or [],
@@ -163,6 +209,12 @@ class Settings:
             "MAPVIEW_FARM_LIST_PROB": self.MAPVIEW_FARM_LIST_PROB,
             "FARM_LIST_SUBSET_MIN": self.FARM_LIST_SUBSET_MIN,
             "FARM_LIST_SUBSET_MAX": self.FARM_LIST_SUBSET_MAX,
+            "BLOCK_SIZE_MIN": self.BLOCK_SIZE_MIN,
+            "BLOCK_SIZE_MAX": self.BLOCK_SIZE_MAX,
+            "REST_MIN_MINUTES": self.REST_MIN_MINUTES,
+            "REST_MAX_MINUTES": self.REST_MAX_MINUTES,
+            "QUIET_WINDOWS": self.QUIET_WINDOWS or [],
+            "SKIP_CYCLE_PROB": self.SKIP_CYCLE_PROB,
             "ATTACK_DETECTOR_ENABLE": self.ATTACK_DETECTOR_ENABLE,
             "ATTACK_DETECTOR_DISCORD_WEBHOOK": bool(self.ATTACK_DETECTOR_DISCORD_WEBHOOK),
             "ATTACK_DETECTOR_INTERVAL_BASE": self.ATTACK_DETECTOR_INTERVAL_BASE,
@@ -173,12 +225,22 @@ class Settings:
             "ATTACK_DETECTOR_SEND_SCREENSHOT": self.ATTACK_DETECTOR_SEND_SCREENSHOT,
             "ATTACK_DETECTOR_USE_HOTKEYS": self.ATTACK_DETECTOR_USE_HOTKEYS,
             "ATTACK_DETECTOR_REFRESH_COMBO": self.ATTACK_DETECTOR_REFRESH_COMBO,
+            "REPORT_DEBUG_LOG": self.REPORT_DEBUG_LOG,
+            "REPORT_DEBUG_DUMP": self.REPORT_DEBUG_DUMP,
+            "PROCESS_REPORTS_IN_AUTOMATION": self.PROCESS_REPORTS_IN_AUTOMATION,
+            "HERO_ADVENTURE_ENABLE": self.HERO_ADVENTURE_ENABLE,
+            "HERO_ADVENTURE_MIN_HEALTH": self.HERO_ADVENTURE_MIN_HEALTH,
+            "HERO_ADVENTURE_MAX_DURATION_MIN": self.HERO_ADVENTURE_MAX_DURATION_MIN,
+            "HERO_ADVENTURE_ALLOW_DANGER": self.HERO_ADVENTURE_ALLOW_DANGER,
+            "HERO_ADVENTURE_POLL_INTERVAL_SEC": self.HERO_ADVENTURE_POLL_INTERVAL_SEC,
+            "HERO_ADVENTURE_RANDOM_JITTER_SEC": self.HERO_ADVENTURE_RANDOM_JITTER_SEC,
         }
 
 
 def load_settings(env_prefix: str = "") -> Settings:
     s = Settings()
-    cfg = _load_yaml("config.yaml")
+    cfg_raw = _load_yaml("config.yaml")
+    cfg = _flatten_cfg(cfg_raw)
 
     def g(name: str, default):
         key = (env_prefix + name) if env_prefix else name
@@ -273,6 +335,18 @@ def load_settings(env_prefix: str = "") -> Settings:
     s.ATTACK_DETECTOR_SEND_SCREENSHOT = _as_bool(g("ATTACK_DETECTOR_SEND_SCREENSHOT", s.ATTACK_DETECTOR_SEND_SCREENSHOT), s.ATTACK_DETECTOR_SEND_SCREENSHOT)
     s.ATTACK_DETECTOR_USE_HOTKEYS = _as_bool(g("ATTACK_DETECTOR_USE_HOTKEYS", s.ATTACK_DETECTOR_USE_HOTKEYS), s.ATTACK_DETECTOR_USE_HOTKEYS)
     s.ATTACK_DETECTOR_REFRESH_COMBO = _as_str(g("ATTACK_DETECTOR_REFRESH_COMBO", s.ATTACK_DETECTOR_REFRESH_COMBO), s.ATTACK_DETECTOR_REFRESH_COMBO)
+    # Reports debugging
+    s.REPORT_DEBUG_LOG = _as_bool(g("REPORT_DEBUG_LOG", s.REPORT_DEBUG_LOG), s.REPORT_DEBUG_LOG)
+    s.REPORT_DEBUG_DUMP = _as_bool(g("REPORT_DEBUG_DUMP", s.REPORT_DEBUG_DUMP), s.REPORT_DEBUG_DUMP)
+    s.PROCESS_REPORTS_IN_AUTOMATION = _as_bool(g("PROCESS_REPORTS_IN_AUTOMATION", s.PROCESS_REPORTS_IN_AUTOMATION), s.PROCESS_REPORTS_IN_AUTOMATION)
+
+    # Hero adventures
+    s.HERO_ADVENTURE_ENABLE = _as_bool(g("HERO_ADVENTURE_ENABLE", s.HERO_ADVENTURE_ENABLE), s.HERO_ADVENTURE_ENABLE)
+    s.HERO_ADVENTURE_MIN_HEALTH = _as_int(g("HERO_ADVENTURE_MIN_HEALTH", s.HERO_ADVENTURE_MIN_HEALTH), s.HERO_ADVENTURE_MIN_HEALTH)
+    s.HERO_ADVENTURE_MAX_DURATION_MIN = _as_int(g("HERO_ADVENTURE_MAX_DURATION_MIN", s.HERO_ADVENTURE_MAX_DURATION_MIN), s.HERO_ADVENTURE_MAX_DURATION_MIN)
+    s.HERO_ADVENTURE_ALLOW_DANGER = _as_bool(g("HERO_ADVENTURE_ALLOW_DANGER", s.HERO_ADVENTURE_ALLOW_DANGER), s.HERO_ADVENTURE_ALLOW_DANGER)
+    s.HERO_ADVENTURE_POLL_INTERVAL_SEC = _as_int(g("HERO_ADVENTURE_POLL_INTERVAL_SEC", s.HERO_ADVENTURE_POLL_INTERVAL_SEC), s.HERO_ADVENTURE_POLL_INTERVAL_SEC)
+    s.HERO_ADVENTURE_RANDOM_JITTER_SEC = _as_int(g("HERO_ADVENTURE_RANDOM_JITTER_SEC", s.HERO_ADVENTURE_RANDOM_JITTER_SEC), s.HERO_ADVENTURE_RANDOM_JITTER_SEC)
     return s
 
 

@@ -250,6 +250,285 @@ class TravianAPI:
                     continue
         return animal_count
 
+    # --- Hero Adventures (HTML-based parsing) ---
+    def list_hero_adventures(self) -> list[dict]:
+        """Parse the hero adventures page and return a list of available adventures.
+
+        Each returned dict aims to include:
+        - id: best-effort adventure id (if found)
+        - duration_min: estimated duration in minutes (int or None)
+        - is_dangerous: whether the adventure is marked as dangerous (bool or None)
+        - form_action: the form action URL to start the adventure
+        - form_method: POST/GET (default POST)
+        - form_inputs: dict of hidden + other input fields required to submit
+
+        The parser is resilient across Travian variants; when fields cannot be
+        extracted reliably, it still attempts to capture a usable form payload
+        and dumps the page to logs for debugging.
+        """
+        try:
+            res = self.session.get(f"{self.server_url}/hero/adventures")
+            res.raise_for_status()
+        except Exception as e:
+            logging.error(f"[HeroAdv] Failed to open adventures page: {e}")
+            return []
+
+        html = getattr(res, "text", "") or ""
+        try:
+            Path("logs").mkdir(parents=True, exist_ok=True)
+            (Path("logs")/"hero_adventures_page.html").write_text(html, encoding="utf-8")
+        except Exception:
+            pass
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        adventures: list[dict] = []
+
+        # 0) Try to parse GraphQL stub embedded in the page (most reliable in React UI)
+        try:
+            import re, json as _json
+            scripts = soup.find_all("script")
+            for sc in scripts:
+                s = sc.string or sc.get_text("\n", strip=False) or ""
+                if "Travian.React.HeroAdventure.render" in s and "viewData" in s:
+                    # Extract viewData JSON object
+                    m = re.search(r"viewData:\s*(\{.*?\})\s*,\s*activePerspective", s, re.DOTALL)
+                    if not m:
+                        continue
+                    jtxt = m.group(1)
+                    # Fix possible trailing commas/newlines by a lenient attempt
+                    # Remove newlines and JS-specific trailing commas in simple cases
+                    jtxt = re.sub(r",\s*([}\]])", r"\1", jtxt)
+                    data = _json.loads(jtxt)
+                    hero = (((data or {}).get("data", {}) or {}).get("ownPlayer", {}) or {}).get("hero", {}) or {}
+                    advs = hero.get("adventures", []) or []
+                    for a in advs:
+                        # travelingDuration is in seconds in the snippet; convert to minutes
+                        dur_sec = a.get("travelingDuration")
+                        dmin = int(round(float(dur_sec)/60.0)) if isinstance(dur_sec, (int, float)) else None
+                        diff = a.get("difficulty")
+                        is_danger = bool(diff >= 4) if isinstance(diff, (int, float)) else None
+                        adventures.append({
+                            "id": a.get("mapId"),
+                            "duration_min": dmin,
+                            "is_dangerous": is_danger,
+                            "form_action": None,   # no form; will use GraphQL fallback
+                            "form_method": "POST",
+                            "form_inputs": {},
+                            "gql_map_id": a.get("mapId"),
+                        })
+                    # If we found GraphQL data, prefer it and skip further parsing
+                    if adventures:
+                        return adventures
+        except Exception:
+            pass
+
+        # Travian variants present adventure rows as forms or within a table/list with a submit button.
+        # Strategy: find forms whose action contains 'adventure' and that include a submit button.
+        forms = []
+        try:
+            for form in soup.find_all("form"):
+                action = (form.get("action") or "").lower()
+                if "adventure" in action:
+                    # must have at least one submit/button
+                    if form.find("button") or form.find("input", {"type": "submit"}):
+                        forms.append(form)
+        except Exception:
+            forms = []
+
+        # Fallback: sometimes adventures are within rows with data attributes and a single global form.
+        # We'll still try to collect any button/link that triggers an adventure and reconstruct a pseudo-form.
+        buttons = []
+        try:
+            for b in soup.find_all(["button", "a"]):
+                txt = (b.get_text(" ", strip=True) or "").lower()
+                # broad heuristics across locales (adventure related)
+                if any(k in txt for k in ("adventure", "advent", "avontuur", "abenteuer", "aventura")):
+                    buttons.append(b)
+        except Exception:
+            buttons = []
+
+        def _parse_duration_minutes(container) -> int | None:
+            try:
+                txt = container.get_text(" ", strip=True)
+            except Exception:
+                txt = ""
+            if not txt:
+                return None
+            # Patterns like '1:23:00', '1:23 h', '75 min', '75m'
+            import re
+            m = re.search(r"(\d{1,2}):(\d{2})(?::(\d{2}))?", txt)
+            if m:
+                h = int(m.group(1))
+                mi = int(m.group(2))
+                s = int(m.group(3)) if m.group(3) else 0
+                return h*60 + mi + (1 if s>=30 else 0)
+            m = re.search(r"(\d+)\s*(?:min|m)\b", txt, re.IGNORECASE)
+            if m:
+                return int(m.group(1))
+            m = re.search(r"(\d+)\s*(?:h|uur|std)\b", txt, re.IGNORECASE)
+            if m:
+                return int(m.group(1)) * 60
+            return None
+
+        def _is_dangerous(container) -> bool | None:
+            try:
+                classes = " ".join(container.get("class", []))
+                if any(k in classes.lower() for k in ("danger", "dangerous")):
+                    return True
+            except Exception:
+                pass
+            try:
+                txt = container.get_text(" ", strip=True).lower()
+                if any(k in txt for k in ("danger", "gevaar", "gefähr", "peligro")):
+                    return True
+            except Exception:
+                pass
+            return None
+
+        def _collect_form_payload(form) -> dict:
+            payload = {}
+            try:
+                for inp in form.find_all("input"):
+                    name = inp.get("name")
+                    if not name:
+                        continue
+                    val = inp.get("value") or ""
+                    payload[name] = val
+                # also include selected option values if any
+                for sel in form.find_all("select"):
+                    name = sel.get("name")
+                    if not name:
+                        continue
+                    opt = sel.find("option", selected=True) or sel.find("option")
+                    if opt:
+                        payload[name] = opt.get("value") or opt.get_text(strip=True)
+            except Exception:
+                pass
+            return payload
+
+        # Parse form-based adventures (most reliable)
+        for f in forms:
+            try:
+                action = f.get("action") or "/hero/adventures"
+                method = (f.get("method") or "POST").upper()
+                payload = _collect_form_payload(f)
+                # Best effort ID
+                adv_id = payload.get("adventureId") or payload.get("aId") or payload.get("id")
+                # Duration/danger from nearest row/container
+                container = f
+                for parent in [f, f.parent, f.parent.parent]:
+                    if not parent:
+                        continue
+                    dmin = _parse_duration_minutes(parent)
+                    dang = _is_dangerous(parent)
+                    if dmin is not None or dang is not None:
+                        adventures.append({
+                            "id": adv_id,
+                            "duration_min": dmin,
+                            "is_dangerous": bool(dang) if dang is not None else None,
+                            "form_action": action,
+                            "form_method": method,
+                            "form_inputs": payload,
+                        })
+                        break
+                else:
+                    adventures.append({
+                        "id": adv_id,
+                        "duration_min": None,
+                        "is_dangerous": None,
+                        "form_action": action,
+                        "form_method": method,
+                        "form_inputs": payload,
+                    })
+            except Exception:
+                continue
+
+        # Fallback: button/link-based adventures when forms are not cleanly exposed
+        if not adventures and buttons:
+            for b in buttons:
+                try:
+                    href = b.get("href")
+                    if href and ("adventure" in href.lower()):
+                        adventures.append({
+                            "id": None,
+                            "duration_min": _parse_duration_minutes(b) or None,
+                            "is_dangerous": _is_dangerous(b),
+                            "form_action": href,
+                            "form_method": "GET",
+                            "form_inputs": {},
+                        })
+                except Exception:
+                    continue
+
+        return adventures
+
+    def start_hero_adventure(self, adventure: dict) -> bool:
+        """Submit the adventure start form/link obtained from list_hero_adventures().
+
+        Returns True if the response indicates success. On failures, dumps debug HTML.
+        """
+        if not adventure:
+            return False
+        action = adventure.get("form_action") or "/hero/adventures"
+        method = str(adventure.get("form_method") or "POST").upper()
+        inputs = adventure.get("form_inputs") or {}
+
+        # Normalize action to absolute URL
+        if not action.startswith("http"):
+            if not action.startswith("/"):
+                action = "/" + action
+            action = f"{self.server_url}{action}"
+
+        try:
+            # Primary: if GraphQL map id is available, attempt known mutation names
+            gql_map_id = adventure.get("gql_map_id") or adventure.get("id")
+            if gql_map_id is not None:
+                import json as _json
+                mutations = [
+                    "mutation($mapId:Int!){ startAdventure(mapId:$mapId){ __typename } }",
+                    "mutation($mapId:Int!){ heroStartAdventure(mapId:$mapId){ __typename } }",
+                    "mutation($mapId:Int!){ startHeroAdventure(mapId:$mapId){ __typename } }",
+                ]
+                for q in mutations:
+                    try:
+                        res = self.session.post(f"{self.server_url}/api/v1/graphql", json={"query": q, "variables": {"mapId": int(gql_map_id)}})
+                        if getattr(res, "ok", False):
+                            j = {}
+                            try:
+                                j = res.json() or {}
+                            except Exception:
+                                j = {}
+                            if not j.get("errors"):
+                                return True
+                    except Exception:
+                        continue
+
+            # Fallback: submit the form/link if present
+            if method == "GET":
+                res = self.session.get(action, params=inputs)
+            else:
+                res = self.session.post(action, data=inputs)
+            ok = getattr(res, "ok", False)
+            if not ok:
+                raise Exception(f"HTTP {getattr(res, 'status_code', '?')}")
+
+            text = getattr(res, "text", "") or ""
+            low = text.lower()
+            success = not any(k in low for k in ("error", "not enough", "insufficient", "health too low"))
+            if not success:
+                raise Exception("Adventure start likely failed (page reported an error)")
+            return True
+        except Exception as e:
+            logging.error(f"[HeroAdv] Failed to start adventure: {e}")
+            try:
+                Path("logs").mkdir(parents=True, exist_ok=True)
+                content = getattr(res, "text", None) if 'res' in locals() else None
+                (Path("logs")/"hero_adventure_start_error.html").write_text(content or "", encoding="utf-8")
+            except Exception:
+                pass
+            return False
+
     def prepare_oasis_attack(self, map_id: int, x: int, y: int, troop_setup: dict) -> dict:
         """Prepare an attack on a given oasis and return action and checksum."""
 
@@ -468,31 +747,102 @@ class TravianAPI:
         """
         Best-effort: zoekt in /berichte.php naar het meest recente rapport dat (x|y) bevat,
         opent dat rapport en retourneert {'html': ...}. Retourneert None als niets gevonden.
+        Robuuster gemaakt tegen RTL/Unicode mintekens en onzichtbare layout-tekens.
         """
         try:
+            # Debug toggles
+            try:
+                from config.config import settings as _cfg
+                _dbg_log = bool(getattr(_cfg, 'REPORT_DEBUG_LOG', False))
+                _dbg_dump = bool(getattr(_cfg, 'REPORT_DEBUG_DUMP', False))
+            except Exception:
+                _dbg_log = _dbg_dump = False
             # 1) lijstpagina
             lst = self.session.get(f"{self.server_url}/berichte.php")
             lst.raise_for_status()
-            html = lst.text
-            if x is not None and y is not None:
-                # Zoek link met coordinaten in titel/tekst
-                # Match anchors naar report detail: /berichte.php?id=123...
+            html = lst.text or ""
+            
+            # Normaliseer unicode voor matching: verwijder directionele marks en vervang speciale mintekens
+            def _normalize(s: str) -> str:
+                if not s:
+                    return ""
+                # verwijder directionality/invisible marks
+                rm = dict.fromkeys(map(ord, "\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069"), None)
+                s = s.translate(rm)
+                # vervang diverse dash/min varianten door ASCII '-'
+                for ch in ("\u2212", "\u2010", "\u2011", "\u2012", "\u2013", "\u2014"):
+                    s = s.replace(ch, "-")
+                return s
+
+            norm_html = _normalize(html)
+            # Try newer /report listing with simple pagination first
+            try:
                 import re
-                # Vind alle links naar detail-rapport
-                links = re.findall(r'href="(/berichte\\.php\\?id=\\d+[^"]*)"', html)
-                # Heuristiek: check in de buurt van coords string
-                coord = f"({x}|{y})"
+                pages = ["/report", "/report?page=1", "/report?page=2", "/report?page=3"]
+                xs = str(int(x)) if x is not None else None
+                ys = str(int(y)) if y is not None else None
+                for p in pages:
+                    pg = self.session.get(f"{self.server_url}{p}")
+                    if not getattr(pg, "ok", False):
+                        continue
+                    page_html = getattr(pg, "text", "") or ""
+                    nhtml = _normalize(page_html)
+                    if _dbg_dump:
+                        try:
+                            from pathlib import Path
+                            Path('logs').mkdir(parents=True, exist_ok=True)
+                            safe = p.replace('/', '_').replace('?', '_').replace('=', '_')
+                            (Path('logs')/f'report_list{safe}.html').write_text(page_html, encoding='utf-8')
+                        except Exception:
+                            pass
+                    if xs and ys:
+                        coord_re = re.compile(r"\(\s*" + re.escape(xs) + r"\s*\|\s*" + re.escape(ys) + r"\s*\)")
+                        pos = [m.start() for m in coord_re.finditer(nhtml)]
+                        links = list(re.finditer(r'href=\"(/report\?id=[^\"]*)\"', nhtml))
+                        if _dbg_log:
+                            print(f"[Reports] Scanning {p}: {len(links)} report link(s), coord matches: {len(pos)}")
+                        if pos and links:
+                            for pc in pos:
+                                best = min(links, key=lambda lm: abs(lm.start() - pc))
+                                href = best.group(1)
+                                if _dbg_log:
+                                    # show a small context around the link
+                                    bstart = max(0, best.start()-80)
+                                    bend = min(len(nhtml), best.end()+80)
+                                    snippet = nhtml[bstart:bend]
+                                    print(f"[Reports] Candidate link near coord: {href} … {snippet[:120].replace('\n',' ')} …")
+                                rep = self.session.get(f"{self.server_url}{href}")
+                                if getattr(rep, "ok", False):
+                                    return {"html": rep.text}
+                    else:
+                        m = re.search(r'href=\"(/report\?id=[^\"]*)\"', nhtml)
+                        if m:
+                            if _dbg_log:
+                                print(f"[Reports] No coords: opening first report link {m.group(1)} from {p}")
+                            rep = self.session.get(f"{self.server_url}{m.group(1)}")
+                            if getattr(rep, "ok", False):
+                                return {"html": rep.text}
+            except Exception:
+                pass
+            if x is not None and y is not None:
+                import re
+                # Vind alle detail-links in genormaliseerde HTML
+                link_iter = list(re.finditer(r'href="(/berichte\\.php\\?id=\\d+[^"]*)"', norm_html))
+                # Coordvorm met pijpje en optionele spaties, met ASCII '-' na normalisatie
+                xs, ys = str(int(x)), str(int(y))
+                coord_re = re.compile(r"\(\s*" + re.escape(xs) + r"\s*\|\s*" + re.escape(ys) + r"\s*\)")
+                pos_coord = [m.start() for m in coord_re.finditer(norm_html)]
                 candidate = None
-                for m in re.finditer(r'(<a[^>]+berichte\\.php\\?id=\\d+[^>]*>.*?</a>)', html, re.DOTALL):
-                    block = m.group(1)
-                    if coord in block:
-                        href_match = re.search(r'href="(/berichte\\.php\\?id=\\d+[^"]*)"', block)
-                        if href_match:
-                            candidate = href_match.group(1)
+                if pos_coord and link_iter:
+                    # Koppel dichtsbijzijnde link aan coord-positie
+                    for pc in pos_coord:
+                        best = min(link_iter, key=lambda lm: abs(lm.start() - pc))
+                        if best is not None:
+                            candidate = best.group(1)
                             break
                 # fallback: pak eerste link als niets met coords
-                if not candidate and links:
-                    candidate = links[0]
+                if not candidate and link_iter:
+                    candidate = link_iter[0].group(1)
                 if not candidate:
                     return None
                 # 2) detailpagina

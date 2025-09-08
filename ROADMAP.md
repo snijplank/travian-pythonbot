@@ -37,11 +37,33 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
 - [ ] Auto-refresh farm lists uit GraphQL → lokale config sync + waarschuwing
 - [ ] Statsoverzicht per raid-plan (succestratio, verliezen, haul)
 
+## 4.1 🏗️ Dorpbeheer (nieuw)
+**Doel: basisproductie en militaire opbouw automatiseren, per dorp.**
+- [ ] Resourcevelden upgraden (per dorp, per profiel)
+  - Profielen: Balanced | Crop‑focus | Wood/Clay early game
+  - Respecteer bouwwachttijden; vermijd wachtrijen botsachtig snel te vullen
+  - Budgetbewust: minimum resourcebuffer + limiet per cycle
+- [ ] Gebouwen upgraden (fundamentals)
+  - Warehouse/Granary bij resource overflow‑dreiging
+  - Main Building voor snellere bouw
+- [ ] Troepen trainen per dorp
+  - Per dorp een trainingsprofiel (inf/cav mix) + caps per dag/uur
+  - Respecteer resource buffers en held‑status (bij lage health minder training)
+  - Queue awareness: detecteer vol/looptijd; niet spammen
+
 ## 5️⃣ Integraties & Observability
 **Doel: meldingen en zichtbaarheid.**
 - [ ] Discord/Telegram: notificaties (cycle done, errors, hero dood, raids klaar)
 - [ ] Optionele JSON logging naast human logs (grep/analyses)
 - [ ] Dashboard (Matplotlib of simpele web UI) voor trends (raids/dag, hero XP)
+
+## 5.1 🦸 Held‑automatisering (nieuw)
+**Doel: held efficiënt inzetten zonder risico.**
+- [x] Hero status/raiding thread (aanwezig)
+- [ ] Held naar avonturen sturen (adventures)
+  - Detecteer beschikbare avonturen; prioriteer dichtbij/laag risico bij lage health
+  - Health‑guard: onder drempel geen avonturen/raids; optie om zalf toe te passen
+  - Log adventure resultaten (loot/XP) voor rapportage
 
 ## 6️⃣ Scheduler & Multi-account
 **Doel: flexibel draaien met meerdere profielen.**
@@ -68,6 +90,11 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
 3. CLI flags (–full-auto, –server, –headless) en farm/oasis TTY editor
 4. Discord/Telegram notificaties (minimaal: cycle done + errors)
 5. JSON logging toggle + basis unit tests (mapping/parsers)
+
+➡️ Opvolgende prioriteiten (dorp & held)
+6. Resourceveld‑upgrades per dorp (profielen + budgetten)
+7. Troepentraining per dorp (profielen + caps)
+8. Held‑adventures integreren met health/loot‑guards
 
 🧩 Kleine, concrete issues
 1) Result-type (sent/skipped/failed + reason) als standaard object in logs/metrics

@@ -92,7 +92,7 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
             base = int(item.get("recommended", item.get("sent", 0)) or 0)
             sent = int(item.get("sent", 0) or 0)
             ts_sent = item.get("ts_sent")      # ISO
-            # Wacht minstens 5 minuten na verzending voordat we zoeken
+            # Wacht een minimale periode (configureerbaar) na verzending voordat we zoeken
             ts_epoch = item.get("_epoch", None)
             if ts_epoch is None:
                 # voeg epoch toe de eerste keer
@@ -102,7 +102,10 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
                     pass
                 keep.append(item)
                 continue
-            if now_ts - float(ts_epoch) < 300:
+            age = now_ts - float(ts_epoch)
+            min_wait = float(getattr(settings, "REPORT_MIN_WAIT_SEC", 60.0))
+            if age < min_wait:
+                logging.debug(f"[ReportChecker] Pending {item.get('oasis')} too fresh (age={age:.0f}s < {min_wait:.0f}s)")
                 keep.append(item)
                 continue
 
@@ -115,6 +118,7 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
             report = api.find_latest_oasis_report(x, y)
             if not report:
                 # nog niet beschikbaar, later opnieuw proberen
+                logging.info(f"[ReportChecker] No report found yet for {key}; keep pending (age={age:.0f}s)")
                 keep.append(item)
                 continue
 
@@ -168,3 +172,108 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
             _save_pending(keep)
 
         time.sleep(interval_sec)
+
+
+def process_ready_pendings_once(api, verbose: bool = False) -> int:
+    """Verwerk alle pendings éénmaal (geen polling-loop). Retourneert aantal verwerkte items.
+
+    Als verbose=True, print voortgang per pending (handig via Tools-menu).
+    """
+    ls = LearningStore()
+    pendings = _load_pending()
+    changed = False
+    processed = 0
+
+    now_ts = time.time()
+    keep: list[dict] = []
+    if verbose:
+        print(f"[RC] Starting report processing: {len(pendings)} pending item(s)…")
+    for item in pendings:
+        key = item.get("oasis")            # "(x,y)"
+        code = item.get("unit", "mixed")   # "t1" etc
+        base = int(item.get("recommended", item.get("sent", 0)) or 0)
+        sent = int(item.get("sent", 0) or 0)
+        ts_epoch = item.get("_epoch")
+        if ts_epoch is None:
+            try:
+                item["_epoch"] = now_ts
+            except Exception:
+                pass
+            keep.append(item)
+            continue
+        age = now_ts - float(ts_epoch)
+        min_wait = float(getattr(settings, "REPORT_MIN_WAIT_SEC", 60.0))
+        if age < min_wait:
+            if verbose:
+                print(f"[RC] {key}: too fresh (age={age:.0f}s < {min_wait:.0f}s), keep")
+            keep.append(item)
+            continue
+
+        try:
+            x, y = eval(key) if isinstance(key, str) else (None, None)
+        except Exception:
+            x = y = None
+
+        report = api.find_latest_oasis_report(x, y)
+        if not report:
+            keep.append(item)
+            if verbose:
+                print(f"[RC] {key}: no report found yet, keep (age={age:.0f}s)")
+            continue
+
+        html = report.get("html", "")
+        result = _extract_result_from_report_html(html) or "won"
+        loss_pct = _parse_loss_pct_from_report_html(html)
+        ls.record_attempt(key, code, recommended=base, sent=sent, result=result, loss_pct=loss_pct)
+
+        current = float(ls.get_multiplier(key))
+        if result == "lost":
+            m = ls.nudge_multiplier(
+                key,
+                "up",
+                step=float(getattr(settings, "LEARNING_STEP_UP_ON_LOST", 0.25)),
+                min_mul=float(getattr(settings, "LEARNING_MIN_MUL", 0.8)),
+                max_mul=float(getattr(settings, "LEARNING_MAX_MUL", 2.5)),
+            )
+            add_learning_change(key, old=current, new=m, direction="up", loss_pct=1.0)
+            if verbose:
+                print(f"[RC] {key}: LOST → mul {current:.2f} → {m:.2f}")
+        elif loss_pct is not None:
+            low = float(getattr(settings, "LEARNING_LOSS_THRESHOLD_LOW", 0.20))
+            high = float(getattr(settings, "LEARNING_LOSS_THRESHOLD_HIGH", 0.50))
+            if loss_pct <= low:
+                m = ls.nudge_multiplier(
+                    key,
+                    "down",
+                    step=float(getattr(settings, "LEARNING_STEP_DOWN_ON_LOW_LOSS", 0.10)),
+                    min_mul=float(getattr(settings, "LEARNING_MIN_MUL", 0.8)),
+                    max_mul=float(getattr(settings, "LEARNING_MAX_MUL", 2.5)),
+                )
+                add_learning_change(key, old=current, new=m, direction="down", loss_pct=loss_pct)
+                if verbose:
+                    print(f"[RC] {key}: WON ({loss_pct:.0%} losses) → mul {current:.2f} → {m:.2f}")
+            elif loss_pct > high:
+                m = ls.nudge_multiplier(
+                    key,
+                    "up",
+                    step=float(getattr(settings, "LEARNING_STEP_UP_ON_HIGH_LOSS", 0.10)),
+                    min_mul=float(getattr(settings, "LEARNING_MIN_MUL", 0.8)),
+                    max_mul=float(getattr(settings, "LEARNING_MAX_MUL", 2.5)),
+                )
+                add_learning_change(key, old=current, new=m, direction="up", loss_pct=loss_pct)
+                if verbose:
+                    print(f"[RC] {key}: WON ({loss_pct:.0%} losses) → mul {current:.2f} → {m:.2f}")
+            else:
+                if verbose:
+                    print(f"[RC] {key}: WON (loss unknown) → mul stays {current:.2f}")
+        else:
+            if verbose:
+                print(f"[RC] {key}: WON (loss unknown) → mul stays {current:.2f}")
+        processed += 1
+        changed = True
+
+    if changed:
+        _save_pending(keep)
+    if verbose:
+        print(f"[RC] Done. Processed {processed} pending(s). Remaining: {len(keep)}")
+    return processed

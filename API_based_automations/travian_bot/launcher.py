@@ -16,11 +16,13 @@ from identity_handling.identity_manager import handle_identity_management
 from identity_handling.identity_helper import load_villages_from_identity
 from features.hero.hero_operations import run_hero_operations as run_hero_ops, print_hero_status_summary
 from features.hero.hero_raiding_thread import run_hero_raiding_thread
+from features.hero.hero_adventure_thread import run_hero_adventure_thread
+from features.hero.hero_adventure import maybe_start_adventure
 from core.hero_manager import HeroManager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dtime
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
-from core.report_checker import process_ready_pendings
+from core.report_checker import process_ready_pendings_once
 from features.defense.attack_detector import run_attack_detector_thread
 
 # === CONFIG (centralized) ===
@@ -123,12 +125,53 @@ def _sleep_minutes(minutes):
     time.sleep(minutes*60)
 
 def _compute_limiter_params():
-    total = max(0, int(getattr(settings, "DAILY_MAX_RUNTIME_MINUTES", 600)))
+    import random
+    base_total = max(0, int(getattr(settings, "DAILY_MAX_RUNTIME_MINUTES", 600)))
+    variance = float(getattr(settings, "DAILY_VARIANCE_PCT", 0.0))
+    if variance > 0:
+        delta = int(base_total * random.uniform(-variance, variance))
+    else:
+        delta = 0
+    total = max(0, base_total + delta)
     blocks = max(1, int(getattr(settings, "DAILY_BLOCKS", 3)))
-    block_size = max(1, total // blocks)
-    rest_total = max(0, 24*60 - total)
-    rest_between_blocks = rest_total // blocks
+    # Random block size if configured
+    bmin = int(getattr(settings, "BLOCK_SIZE_MIN", 0))
+    bmax = int(getattr(settings, "BLOCK_SIZE_MAX", 0))
+    if bmax > 0 and bmax >= bmin > 0:
+        block_size = random.randint(bmin, bmax)
+    else:
+        block_size = max(1, total // blocks)
+    # Random rest between blocks if configured
+    rmin = int(getattr(settings, "REST_MIN_MINUTES", 0))
+    rmax = int(getattr(settings, "REST_MAX_MINUTES", 0))
+    rest_between_blocks = (rmin, rmax) if (rmax >= rmin > 0) else (0, 0)
     return total, blocks, block_size, rest_between_blocks
+
+def _parse_quiet_windows() -> list[tuple[dtime,dtime]]:
+    out = []
+    try:
+        wins = getattr(settings, "QUIET_WINDOWS", []) or []
+        for w in wins:
+            try:
+                a,b = [p.strip() for p in str(w).split('-')]
+                h1,m1 = [int(x) for x in a.split(':')]
+                h2,m2 = [int(x) for x in b.split(':')]
+                out.append((dtime(h1,m1), dtime(h2,m2)))
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return out
+
+def _in_quiet_window(now: datetime, windows: list[tuple[dtime,dtime]]) -> timedelta | None:
+    for (s,e) in windows:
+        start = now.replace(hour=s.hour, minute=s.minute, second=0, microsecond=0)
+        end = now.replace(hour=e.hour, minute=e.minute, second=0, microsecond=0)
+        if end <= start:
+            end += timedelta(days=1)
+        if start <= now < end:
+            return end - now
+    return None
 
 def view_identity():
     """Display the current identity information."""
@@ -258,7 +301,7 @@ def _write_config_yaml(updates: dict):
         print(f"❌ Could not write config.yaml: {e}")
 
 
-def tools_menu():
+def tools_menu(api: TravianAPI):
     """Menu for tools & detectors (e.g., attack detector)."""
     while True:
         print("""
@@ -266,7 +309,8 @@ def tools_menu():
 [1] Toggle Attack Detector (enable/disable)
 [2] Set Discord Webhook URL
 [3] Test Discord Notification (with screenshot)
-[4] Back to main menu
+[4] Process reports now (one pass)
+[5] Back to main menu
 """)
         sel = input("Select an option: ").strip()
         if sel == "1":
@@ -307,6 +351,13 @@ def tools_menu():
             except Exception as e:
                 print(f"❌ Error: {e}")
         elif sel == "4":
+            try:
+                # Verbose one-pass processing with progress output
+                n = process_ready_pendings_once(api, verbose=True)
+                print(f"✅ ReportChecker processed {n} pending(s).")
+            except Exception as e:
+                print(f"❌ Failed to process reports: {e}")
+        elif sel == "5":
             return
         else:
             print("❌ Invalid option.")
@@ -401,17 +452,7 @@ def run_map_scan(api: TravianAPI):
 def main():
     _setup_logging()
     _log_info("Launcher started.")
-    # --- Runtime identity banner (to confirm which launcher.py is running) ---
-    try:
-        from pathlib import Path as _P
-        import hashlib as _hl
-        _path = _P(__file__).resolve()
-        _sha = _hl.sha256(_path.read_bytes()).hexdigest()[:12]
-        print(f"[Main] LAUNCHER FILE: {_path}")
-        print(f"[Main] LAUNCHER SHA256: {_sha}")
-        print(f"[Main] LAUNCHER MTIME: {time.ctime(os.path.getmtime(_path))}")
-    except Exception as _e:
-        print(f"[Main] (debug) could not compute launcher fingerprint: {_e}")
+    # Fingerprint banner removed for cleaner console output
     print("\n" + "="*40)
     print("🎮 TRAVIAN AUTOMATION LAUNCHER")
     print("="*40)
@@ -500,14 +541,8 @@ def main():
         run_raid_planner(api, server_url, multi_village=False, run_farm_lists=False)
     elif choice == "7":
         print("\n🤖 Starting full automation mode...")
-        print("[Main] SENTINEL A — entered choice 7 branch", flush=True)
-        # Config echo for diagnostics
-        try:
-            print(f"[Main] Settings: WAIT_BETWEEN_CYCLES_MINUTES={getattr(settings,'WAIT_BETWEEN_CYCLES_MINUTES',None)}, JITTER_MINUTES={getattr(settings,'JITTER_MINUTES',None)}, SKIP_FARM_LISTS_FIRST_RUN={getattr(settings,'SKIP_FARM_LISTS_FIRST_RUN',None)}", flush=True)
-        except Exception:
-            pass
         _log_info("Starting Full Auto Mode.")
-        print("[Main] SENTINEL B — before starting hero thread", flush=True)
+        
         # Read configurable toggle for first cycle farm-lists behavior
         skip_farm_lists_first_run = bool(getattr(settings, "SKIP_FARM_LISTS_FIRST_RUN", False))
         # Reuse existing logged-in API and server_url from earlier login
@@ -521,16 +556,21 @@ def main():
                 daemon=True,
             )
             hero_thread.start()
-            print(f"[Main] Hero raiding thread started (daemon, alive={hero_thread.is_alive()}).", flush=True)
-            _log_info("Hero raiding thread started (daemon).")
+            _log_info(f"Hero raiding thread started (daemon, alive={hero_thread.is_alive()}).")
+            # Also start the adventure watcher
+            adv_thread = threading.Thread(
+                target=run_hero_adventure_thread,
+                args=(api,),
+                name="HeroAdventureThread",
+                daemon=True,
+            )
+            adv_thread.start()
+            _log_info(f"Hero adventure thread started (daemon, alive={adv_thread.is_alive()}).")
         except Exception as e:
             print(f"[Main] ⚠️ Could not start hero thread: {e}", flush=True)
             _log_warn(f"Could not start hero thread: {e}")
-        print("[Main] SENTINEL C — hero thread started", flush=True)
-        # Start report checker (daemon)
-        checker_thread = threading.Thread(target=process_ready_pendings, args=(api, 60), name="ReportChecker", daemon=True)
-        checker_thread.start()
-        print("[Main] ReportChecker started (daemon).", flush=True)
+        
+        # ReportChecker niet parallel starten: we verwerken pendings sequentieel per cycle
         # Start attack detector if enabled
         try:
             if bool(getattr(settings, "ATTACK_DETECTOR_ENABLE", False)):
@@ -548,18 +588,36 @@ def main():
         total_allowed, blocks, block_size, rest_between_blocks = _compute_limiter_params()
         runtime_state = _load_runtime_state()
         if runtime_state["date"] != _today_str():
-            runtime_state = {"date": _today_str(), "minutes_used": 0}
+            runtime_state = {
+                "date": _today_str(),
+                "minutes_used": 0,
+                "total_allowed": int(total_allowed),
+                "block_size": int(block_size),
+            }
             _save_runtime_state(runtime_state)
+        else:
+            # reuse chosen values for today
+            total_allowed = int(runtime_state.get("total_allowed", total_allowed))
+            block_size = int(runtime_state.get("block_size", block_size))
 
-        print("[Main] SENTINEL D — about to enter main loop", flush=True)
+        
         while True:
             try:
-                print("[Main] ▶ Loop tick", flush=True)
-                print(f"\n[Main] Starting cycle at {time.strftime('%H:%M:%S')}", flush=True)
+                _log_info("Loop tick")
+                print(f"\n[Main] Starting cycle at {time.strftime('%H:%M:%S')}")
                 _log_info("Cycle started.")
                 cycle_start_ts = time.time()
 
                 # --- Place your farming/oasis logic here (existing repo code) ---
+                # Try to start a hero adventure if conditions allow (low-latency)
+                try:
+                    if bool(getattr(settings, 'HERO_ADVENTURE_ENABLE', True)):
+                        started = maybe_start_adventure(api)
+                        if started:
+                            print("[Main] 🦸 Hero adventure started.")
+                except Exception as _adv_e:
+                    _log_warn(f"Hero adventure attempt failed: {_adv_e}")
+
                 # Small human-like pause before starting planner
                 try:
                     import random, time as _t
@@ -584,7 +642,7 @@ def main():
                 first_cycle = False
 
                 # Hero summary + record to metrics
-                print("[Main] Fetching hero status summary...")
+                _log_info("Fetching hero status summary…")
                 hero_manager = HeroManager(api)
                 status = hero_manager.fetch_hero_status()
                 if status:
@@ -603,6 +661,19 @@ def main():
                 else:
                     print("❌ Could not fetch hero status summary.")
                     _log_warn("Could not fetch hero status summary.")
+
+                # Report checker – sequential pass (avoid simultaneous activity)
+                try:
+                    from config.config import settings as _cfg
+                    if bool(getattr(_cfg, 'PROCESS_REPORTS_IN_AUTOMATION', True)):
+                        import random as _rnd, time as _t
+                        _t.sleep(_rnd.uniform(0.3, 1.0))
+                        processed = process_ready_pendings_once(api)
+                        _log_info(f"ReportChecker pass processed {processed} pending(s) this cycle.")
+                    else:
+                        _log_info("ReportChecker pass skipped (disabled in config).")
+                except Exception as _e:
+                    _log_warn(f"ReportChecker pass failed: {_e}")
 
                 # Cycle report (metrics snapshot)
                 try:
@@ -635,17 +706,30 @@ def main():
                 elapsed_minutes = max(1, int((time.time() - cycle_start_ts)//60))
                 if limiter_enabled:
                     if runtime_state["date"] != _today_str():
-                        runtime_state = {"date": _today_str(), "minutes_used": 0}
+                        runtime_state = {"date": _today_str(), "minutes_used": 0, "total_allowed": int(total_allowed), "block_size": int(block_size)}
                     before = runtime_state["minutes_used"]
                     runtime_state["minutes_used"] = before + elapsed_minutes
                     _save_runtime_state(runtime_state)
 
                     prev_block = before // block_size
                     new_block = runtime_state["minutes_used"] // block_size
-                    if rest_between_blocks > 0 and new_block > prev_block and new_block < blocks:
-                        print(f"[Limiter] ✅ Block {prev_block+1} completed ({runtime_state['minutes_used']} / {total_allowed} min).")
-                        _log_info(f"Block {prev_block+1} completed.")
-                        _sleep_minutes(rest_between_blocks)
+                    # pick random rest between blocks if configured
+                    if new_block > prev_block and new_block < blocks:
+                        rest_min, rest_max = 0, 0
+                        try:
+                            rest_min, rest_max = rest_between_blocks
+                        except Exception:
+                            pass
+                        rest_len = 0
+                        if rest_max >= rest_min and rest_max > 0:
+                            import random as _rnd
+                            rest_len = int(_rnd.randint(int(rest_min), int(rest_max)))
+                        elif isinstance(rest_between_blocks, int) and rest_between_blocks > 0:
+                            rest_len = int(rest_between_blocks)
+                        if rest_len > 0:
+                            print(f"[Limiter] ✅ Block {prev_block+1} completed ({runtime_state['minutes_used']} / {total_allowed} min).")
+                            _log_info(f"Block {prev_block+1} completed.")
+                            _sleep_minutes(rest_len)
 
                     if runtime_state["minutes_used"] >= total_allowed:
                         mins_to_tomorrow = _minutes_until_tomorrow()
@@ -693,7 +777,7 @@ def main():
         print("\n🦸 Testing Hero Raiding Thread (Standalone)...")
         run_hero_raiding_thread(api)
     elif choice == "12":
-        tools_menu()
+        tools_menu(api)
     else:
         print("❌ Invalid choice.")
 
