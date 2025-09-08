@@ -105,8 +105,10 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
                 avg = base.get("avg_loss_pct")
                 last_r = base.get("last_result")
                 if avg is not None or last_r:
-                    avg_txt = f", avg_loss={avg:.0%}" if isinstance(avg, (int, float)) else ""
-                    logging.info(f"[Baseline] {key}: last={last_r}{avg_txt}, mul={mul:.2f}")
+                avg_txt = f", avg_loss={avg:.0%}" if isinstance(avg, (int, float)) else ""
+                loot_total = base.get("total_loot_total")
+                loot_txt = f", loot_total={loot_total}" if isinstance(loot_total, int) and loot_total > 0 else ""
+                logging.info(f"[Baseline] {key}: last={last_r}{avg_txt}{loot_txt}, mul={mul:.2f}")
             except Exception:
                 pass
         base_total = sum(int(u.get("group_size", 0)) for u in units)

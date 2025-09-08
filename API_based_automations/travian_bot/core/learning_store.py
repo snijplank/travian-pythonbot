@@ -26,7 +26,7 @@ class LearningStore:
     def get_multiplier(self, key: str) -> float:
         return float(self.data.get(key, {}).get("multiplier", 1.0))
 
-    def record_attempt(self, key: str, unit: str, recommended: int, sent: int, result: str, loss_pct: Optional[float] = None) -> None:
+    def record_attempt(self, key: str, unit: str, recommended: int, sent: int, result: str, loss_pct: Optional[float] = None, haul: Optional[dict] = None) -> None:
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         s = self.data.setdefault(key, {"multiplier": 1.0, "attempts": 0, "successes": 0, "failures": 0})
         s["attempts"] = int(s.get("attempts", 0)) + 1
@@ -63,6 +63,23 @@ class LearningStore:
                 s["avg_loss_pct"] = round(sum(vals)/len(vals), 4)
         except Exception:
             pass
+        # Aggregate haul (resources looted) if provided
+        if isinstance(haul, dict):
+            try:
+                tw = int(haul.get("wood", 0) or 0)
+                tc = int(haul.get("clay", 0) or 0)
+                ti = int(haul.get("iron", 0) or 0)
+                tr = int(haul.get("crop", 0) or 0)
+                tot = max(0, tw + tc + ti + tr)
+                agg = s.setdefault("total_loot", {"wood": 0, "clay": 0, "iron": 0, "crop": 0, "total": 0})
+                agg["wood"] = int(agg.get("wood", 0)) + tw
+                agg["clay"] = int(agg.get("clay", 0)) + tc
+                agg["iron"] = int(agg.get("iron", 0)) + ti
+                agg["crop"] = int(agg.get("crop", 0)) + tr
+                agg["total"] = int(agg.get("total", 0)) + tot
+                s["last_haul"] = {"ts": now, "wood": tw, "clay": tc, "iron": ti, "crop": tr, "total": tot}
+            except Exception:
+                pass
         self._save()
 
     def nudge_multiplier(self, key: str, direction: str, step: float = 0.1, min_mul: float = 0.8, max_mul: float = 2.5) -> float:
@@ -83,7 +100,7 @@ class LearningStore:
         average loss_pct over recent history, and multiplier.
         """
         s = self.data.get(key, {}) or {}
-        return {
+        out = {
             "multiplier": float(s.get("multiplier", 1.0)),
             "attempts": int(s.get("attempts", 0)),
             "successes": int(s.get("successes", 0)),
@@ -93,3 +110,15 @@ class LearningStore:
             "last_loss_pct": s.get("last_loss_pct"),
             "avg_loss_pct": s.get("avg_loss_pct"),
         }
+        try:
+            agg = s.get("total_loot", {}) or {}
+            out["total_loot_total"] = int(agg.get("total", 0))
+            out["total_loot"] = {
+                "wood": int(agg.get("wood", 0)),
+                "clay": int(agg.get("clay", 0)),
+                "iron": int(agg.get("iron", 0)),
+                "crop": int(agg.get("crop", 0)),
+            }
+        except Exception:
+            pass
+        return out

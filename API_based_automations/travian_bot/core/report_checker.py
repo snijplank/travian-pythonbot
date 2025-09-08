@@ -62,6 +62,43 @@ def _parse_loss_pct_from_report_html(html: str) -> Optional[float]:
     except Exception:
         return None
 
+def _parse_bounty_from_report_html(html: str) -> Optional[dict]:
+    """Parse bounty/resources looted from a report detail HTML.
+
+    Looks for the Bounty row in the additionalInformation table and extracts
+    wood, clay, iron, crop amounts in that order.
+    Returns a dict {wood, clay, iron, crop, total} or None if not found.
+    """
+    try:
+        # Remove bi-directional marks (unicode and HTML entities)
+        clean = html.replace("\u202d", "").replace("\u202c", "")
+        clean = clean.replace("&#x202d;", "").replace("&#x202c;", "")
+        import re as _re
+        # Narrow to a block containing 'Bounty'
+        mtbl = _re.search(r"<table[^>]*additionalInformation[^>]*>[\s\S]*?</table>", clean, _re.IGNORECASE)
+        block = mtbl.group(0) if mtbl else clean
+        if "Bounty" not in block and "bounty" not in block.lower():
+            return None
+        # Find the row with <th>Bounty</th> and capture numbers in the following cells
+        mrow = _re.search(r"<tr[\s\S]*?<th[^>]*>\s*Bounty\s*</th>([\s\S]*?)</tr>", block, _re.IGNORECASE)
+        row = mrow.group(1) if mrow else block
+        # Extract the first four integers which correspond to wood, clay, iron, crop
+        nums = _re.findall(r">\s*([0-9]{1,7})\s*<", row)
+        if len(nums) < 4:
+            # Try a more lenient approach: pull digit groups from text between <td>..</td>
+            cells = _re.findall(r"<td[^>]*>([\s\S]*?)</td>", row, _re.IGNORECASE)
+            nums = []
+            for c in cells:
+                k = _re.findall(r"([0-9]{1,7})", c)
+                nums.extend(k)
+        if len(nums) >= 4:
+            w, c, i, r = [int(nums[0]), int(nums[1]), int(nums[2]), int(nums[3])]
+            tot = w + c + i + r
+            return {"wood": w, "clay": c, "iron": i, "crop": r, "total": tot}
+    except Exception:
+        pass
+    return None
+
 def _extract_result_from_report_html(html: str) -> Optional[str]:
     """
     Herken 'won'/'lost' op basis van bekende labels/klassen in report.
@@ -258,7 +295,8 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
         html = report.get("html", "")
         result = _extract_result_from_report_html(html) or "won"
         loss_pct = _parse_loss_pct_from_report_html(html)
-        ls.record_attempt(key, code, recommended=base, sent=sent, result=result, loss_pct=loss_pct)
+        haul = _parse_bounty_from_report_html(html)
+        ls.record_attempt(key, code, recommended=base, sent=sent, result=result, loss_pct=loss_pct, haul=haul)
 
         current = float(ls.get_multiplier(key))
         if result == "lost":
