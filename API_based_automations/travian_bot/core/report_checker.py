@@ -4,6 +4,7 @@ import json, time, re
 from pathlib import Path
 from typing import Optional, Dict, Any
 import logging
+LOG = logging.getLogger("travian")
 
 from core.learning_store import LearningStore
 from core.metrics import add_learning_change
@@ -124,9 +125,7 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
         _cfg = _CfgFallback()
     if not bool(getattr(_cfg, 'LEARNING_ENABLE', True)):
         # Learning disabled → do nothing
-        if verbose:
-            print("[RC] Learning disabled; skipping.")
-        return 0
+        return
     ls = LearningStore()
     while True:
         pendings = _load_pending()
@@ -154,7 +153,7 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
             age = now_ts - float(ts_epoch)
             min_wait = float(getattr(settings, "REPORT_MIN_WAIT_SEC", 60.0))
             if age < min_wait:
-                logging.debug(f"[ReportChecker] Pending {item.get('oasis')} too fresh (age={age:.0f}s < {min_wait:.0f}s)")
+                LOG.debug(f"[ReportChecker] Pending {item.get('oasis')} too fresh (age={age:.0f}s < {min_wait:.0f}s)")
                 keep.append(item)
                 continue
 
@@ -167,7 +166,7 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
             report = api.find_latest_report_by_coords(x, y)
             if not report:
                 # nog niet beschikbaar, later opnieuw proberen
-                logging.info(f"[ReportChecker] No report found yet for {key}; keep pending (age={age:.0f}s)")
+                LOG.info(f"[ReportChecker] No report found yet for {key}; keep pending (age={age:.0f}s)")
                 keep.append(item)
                 continue
 
@@ -200,7 +199,7 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
                         max_mul=float(getattr(settings, "LEARNING_MAX_MUL", 2.5)),
                     )
                     add_learning_change(key, old=current, new=m, direction="down", loss_pct=loss_pct)
-                    logging.info(f"[ReportChecker] {key} won with {loss_pct:.0%} losses → mul ↓ to {m}")
+                    LOG.info(f"[ReportChecker] {key} won with {loss_pct:.0%} losses → mul ↓ to {m}")
                 elif loss_pct > high:
                     m = ls.nudge_multiplier(
                         key,
@@ -210,9 +209,9 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
                         max_mul=float(getattr(settings, "LEARNING_MAX_MUL", 2.5)),
                     )
                     add_learning_change(key, old=current, new=m, direction="up", loss_pct=loss_pct)
-                    logging.info(f"[ReportChecker] {key} won with {loss_pct:.0%} losses → mul ↑ to {m}")
+                    LOG.info(f"[ReportChecker] {key} won with {loss_pct:.0%} losses → mul ↑ to {m}")
                 else:
-                    logging.info(f"[ReportChecker] {key} won with {loss_pct:.0%} losses → mul stays")
+                    LOG.info(f"[ReportChecker] {key} won with {loss_pct:.0%} losses → mul stays")
 
             changed = True
             # niet opnieuw bewaren → processed
@@ -245,16 +244,17 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
 
     now_ts = time.time()
     keep: list[dict] = []
-    # Optional early-exit if geen ongelezen reports in navbar
+    # Optional early-exit als er géén pendings zijn en ook geen ongelezen reports
     try:
         from config.config import settings as _cfg
         if bool(getattr(_cfg, 'REPORT_USE_INDICATOR', True)):
             unread = int(api.get_unread_report_count())
             if verbose:
                 print(f"[RC] Unread reports indicator: {unread}")
-            if unread <= 0 and pendings:
+            # Skip only when there is nothing to process and no unread reports
+            if unread <= 0 and not pendings:
                 if verbose:
-                    print("[RC] No unread reports; skipping scan this pass.")
+                    print("[RC] No pendings and no unread; skipping scan this pass.")
                 return 0
     except Exception:
         pass
@@ -298,6 +298,26 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
         result = _extract_result_from_report_html(html) or "won"
         loss_pct = _parse_loss_pct_from_report_html(html)
         haul = _parse_bounty_from_report_html(html)
+        # Friendly summary similar to send logs
+        try:
+            where = f"({x}, {y})" if (x is not None and y is not None) else "(unknown)"
+            loss_txt = f", loss={loss_pct:.0%}" if isinstance(loss_pct, (int, float)) else ""
+            if isinstance(haul, dict):
+                tw = int(haul.get("wood", 0) or 0)
+                tc = int(haul.get("clay", 0) or 0)
+                ti = int(haul.get("iron", 0) or 0)
+                tr = int(haul.get("crop", 0) or 0)
+                tot = int(haul.get("total", tw+tc+ti+tr) or 0)
+                loot_txt = f", loot W/C/I/R={tw}/{tc}/{ti}/{tr} (total={tot})"
+            else:
+                loot_txt = ""
+            line = f"[Report] {where}: {result.upper()}{loss_txt}{loot_txt}"
+            if verbose:
+                print(line)
+            else:
+                LOG.info(line)
+        except Exception:
+            pass
         ls.record_attempt(key, code, recommended=base, sent=sent, result=result, loss_pct=loss_pct, haul=haul)
 
         current = float(ls.get_multiplier(key))

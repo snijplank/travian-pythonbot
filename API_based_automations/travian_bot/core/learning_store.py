@@ -5,23 +5,39 @@ from pathlib import Path
 from typing import Optional
 
 class LearningStore:
-    def __init__(self, path: str = "database/learning/oasis_stats.json") -> None:
+    def __init__(self, path: str = "database/learning/raid_targets_stats.json") -> None:
+        # Use a generic filename; migrate seamlessly from legacy if present
         self.path = Path(path)
+        self.legacy_path = Path("database/learning/oasis_stats.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.data = {}
+        self._migrated_from_legacy = False
         self._load()
 
     def _load(self) -> None:
-        if self.path.exists():
-            try:
+        try:
+            if self.path.exists():
                 self.data = json.loads(self.path.read_text(encoding="utf-8"))
-            except Exception:
-                self.data = {}
+                return
+            # Legacy migration path: load old file if present
+            if self.legacy_path.exists():
+                self.data = json.loads(self.legacy_path.read_text(encoding="utf-8"))
+                self._migrated_from_legacy = True
+                return
+        except Exception:
+            self.data = {}
 
     def _save(self) -> None:
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(self.data, indent=2, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self.path)
+        # After successful save to new path, remove legacy file to avoid confusion
+        try:
+            if self._migrated_from_legacy and self.legacy_path.exists():
+                self.legacy_path.unlink()
+                self._migrated_from_legacy = False
+        except Exception:
+            pass
 
     def get_multiplier(self, key: str) -> float:
         return float(self.data.get(key, {}).get("multiplier", 1.0))

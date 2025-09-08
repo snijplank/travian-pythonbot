@@ -32,6 +32,10 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
 - [x] Cycle statusregel met report‑samenvatting (processed/no pendings/no unread)
 - [ ] Escort planner 2.0 (multi-unit fallback + safety factors per dier-type)
 - [ ] Cooldown per oase op recente nederlaag (tijdelijk skippen)
+- [ ] Beslissingsregels (configurable):
+  - Cooldown bij `lost`
+  - Extra boost bij `avg_loss_pct` > X%
+  - Deprioriteren bij lage (historische) loot
 
 ## 4️⃣ Farm & Oasis UX
 **Doel: beheerbaarheid en inzicht.**
