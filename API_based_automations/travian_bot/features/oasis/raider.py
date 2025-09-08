@@ -3,6 +3,12 @@ import json, time
 from random import uniform
 from features.oasis.validator import is_valid_unoccupied_oasis
 from core.learning_store import LearningStore
+try:
+    from config.config import settings as _cfg
+except Exception:
+    class _CfgFallback:
+        LEARNING_ENABLE = True
+    _cfg = _CfgFallback()
 from core.metrics import add_sent, add_skip
 from core.unit_catalog import FACTION_TO_TRIBE, resolve_label_t, t_to_u
 from pathlib import Path
@@ -61,7 +67,8 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
     tribe_id = FACTION_TO_TRIBE.get(str(faction), 4)
     logging.info(f"Raid origin village at ({village_x}, {village_y})")
     logging.info(f"Maximum raid distance: {max_raid_distance} tiles")
-    ls = LearningStore()
+    use_learning = bool(getattr(_cfg, 'LEARNING_ENABLE', True))
+    ls = LearningStore() if use_learning else None
 
     # Get current troops
     troops_info = api.get_troops_in_village()
@@ -90,7 +97,7 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
         key = f"({x},{y})"
 
         # Apply learning multiplier per oasis to adjust suggested group sizes
-        mul = float(ls.get_multiplier(key))
+        mul = float(ls.get_multiplier(key)) if use_learning and ls else 1.0
         base_total = sum(int(u.get("group_size", 0)) for u in units)
         # Adjust per-unit composition with multiplier, minimum 1 if base > 0
         adjusted_units = []
@@ -139,12 +146,13 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
             add_sent(1)
             # Log één pending entry voor deze raid zodat de report checker de multiplier kan bijstellen.
             # Omdat we hier een combinatie van units sturen, labelen we dit als 'mixed'.
-            try:
-                adj_total = sum(int(a["adj_group"]) for a in adjusted_units)
-                _append_pending(key, "mixed", recommended=int(base_total), sent=int(adj_total))
-            except Exception:
-                # Logging naar pending is niet kritisch voor het versturen; fouten hier mogen geen crash veroorzaken.
-                pass
+            if use_learning:
+                try:
+                    adj_total = sum(int(a["adj_group"]) for a in adjusted_units)
+                    _append_pending(key, "mixed", recommended=int(base_total), sent=int(adj_total))
+                except Exception:
+                    # Logging naar pending is niet kritisch voor het versturen; fouten hier mogen geen crash veroorzaken.
+                    pass
             # Update available troops
             for au in adjusted_units:
                 uc = au["unit_code"]

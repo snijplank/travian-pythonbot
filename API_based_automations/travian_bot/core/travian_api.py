@@ -95,6 +95,153 @@ class TravianAPI:
         response.raise_for_status()
         return response.json()["data"]["ownPlayer"]
 
+    # --- Progressive Tasks & Rewards ---
+    def get_hero_level(self) -> int | None:
+        """Fetch hero level from HUD endpoint (fast JSON)."""
+        try:
+            res = self.session.get(f"{self.server_url}/api/v1/hero/dataForHUD")
+            res.raise_for_status()
+            j = res.json() or {}
+            lvl = j.get("level")
+            return int(lvl) if lvl is not None else None
+        except Exception:
+            return None
+
+    def refresh_hero_hud(self) -> None:
+        """Trigger a refresh of the HUD JSON (optional after collect)."""
+        try:
+            _ = self.session.get(f"{self.server_url}/api/v1/hero/dataForHUD")
+        except Exception:
+            pass
+
+    def switch_village(self, village_id: int | str) -> None:
+        """Switch current village context (affects tasks scoped to settledVillage)."""
+        try:
+            vid = str(village_id)
+            self.session.get(f"{self.server_url}/dorf1.php?newdid={vid}")
+        except Exception:
+            pass
+
+    def list_collectible_progressive_tasks(self) -> list[dict]:
+        """Parse /tasks page and return a list of JSON payloads for collectReward.
+
+        Returns a list of dicts suitable for POST /api/v1/progressive-tasks/collectReward
+        Each item aims to include: questType, scope, targetLevel, heroLevel, buildingId (optional)
+        """
+        import re, json as _json
+        payloads: list[dict] = []
+        try:
+            res = self.session.get(f"{self.server_url}/tasks")
+            res.raise_for_status()
+            html = getattr(res, "text", "") or ""
+            # Save for debugging
+            try:
+                Path("logs").mkdir(parents=True, exist_ok=True)
+                (Path("logs")/"tasks_page.html").write_text(html, encoding="utf-8")
+            except Exception:
+                pass
+
+            # 1) Look for inline JSON-like objects that include questType/scope/targetLevel/buildingId
+            #    We keep this lenient to survive minor markup changes.
+            candidates = re.findall(r"\{[^{}]*?\"questType\"\s*:\s*\"[^\"]+\"[^{}]*?\}", html)
+            for c in candidates:
+                try:
+                    # Normalize JS-style to JSON (remove trailing commas)
+                    clean = re.sub(r",\s*([}\]])", r"\1", c)
+                    j = _json.loads(clean)
+                except Exception:
+                    # Fallback: manual field scrape
+                    def _grab(name, num=False):
+                        m = re.search(rf'\"{name}\"\s*:\s*(\"([^\"]+)\"|(\d+))', c)
+                        if not m:
+                            return None
+                        if num:
+                            try:
+                                return int(m.group(3) or m.group(2))
+                            except Exception:
+                                return None
+                        return m.group(2)
+                    j = {
+                        "questType": _grab("questType"),
+                        "scope": _grab("scope"),
+                        "targetLevel": _grab("targetLevel", num=True),
+                        "heroLevel": _grab("heroLevel", num=True),
+                        "buildingId": _grab("buildingId", num=True),
+                    }
+                # Validate minimal keys
+                if not j or not j.get("questType") or not j.get("scope"):
+                    continue
+                # Only include items that likely represent a ready-to-collect state
+                # Heuristic: presence of targetLevel and (optionally) buildingId
+                if j.get("targetLevel") is None and j.get("buildingId") is None:
+                    continue
+                payloads.append({k: v for k, v in j.items() if v is not None})
+
+            # 2) If nothing found, try attribute-based hints on buttons/links
+            if not payloads:
+                try:
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(html, "html.parser")
+                    btns = soup.find_all(["button", "a"], attrs={"data-action": re.compile("collect", re.I)})
+                    for b in btns:
+                        q = b.get("data-quest-type") or b.get("data-questType") or b.get("questType")
+                        sc = b.get("data-scope") or b.get("scope")
+                        tl = b.get("data-target-level") or b.get("data-targetLevel") or b.get("targetLevel")
+                        bi = b.get("data-building-id") or b.get("data-buildingId") or b.get("buildingId")
+                        if not q or not sc:
+                            continue
+                        item = {"questType": q, "scope": sc}
+                        try:
+                            if tl is not None:
+                                item["targetLevel"] = int(tl)
+                        except Exception:
+                            pass
+                        try:
+                            if bi is not None:
+                                item["buildingId"] = int(bi)
+                        except Exception:
+                            pass
+                        payloads.append(item)
+                except Exception:
+                    pass
+        except Exception:
+            return []
+
+        # Ensure heroLevel is populated, as server may require it for bonus calculation
+        if payloads:
+            lvl = self.get_hero_level()
+            if lvl is not None:
+                for p in payloads:
+                    p.setdefault("heroLevel", int(lvl))
+        return payloads
+
+    def collect_progressive_reward(self, payload: dict) -> dict | None:
+        """POST to collect reward. Returns JSON or None on failure.
+
+        Expected payload keys typically include:
+          questType, scope, targetLevel, heroLevel, buildingId (optional)
+        """
+        try:
+            # Respect site headers per HAR
+            headers = {
+                "X-Version": "228.4",
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/json; charset=UTF-8",
+                "Accept": "application/json, text/plain, */*",
+            }
+            url = f"{self.server_url}/api/v1/progressive-tasks/collectReward"
+            res = self.session.post(url, json=payload, headers=headers)
+            res.raise_for_status()
+            return res.json()
+        except Exception as e:
+            logging.warning(f"[Tasks] collectReward failed for {payload}: {e}")
+            try:
+                Path("logs").mkdir(parents=True, exist_ok=True)
+                (Path("logs")/"collect_reward_error.txt").write_text(f"Payload: {payload}\nError: {e}\n", encoding="utf-8")
+            except Exception:
+                pass
+            return None
+
     def get_village_farm_lists(self, village_id: int) -> list:
         """Get farm lists from the rally point page."""
         payload = {
@@ -973,6 +1120,216 @@ class TravianAPI:
         response = self.session.post(f"{self.server_url}/api/v1/graphql", json=payload)
         response.raise_for_status()
         return response.json()
+
+    # === Reports (list + detail) ===
+    def list_report_links(self, tab: int | None = None, max_items: int = 100) -> list[str]:
+        """Return relative hrefs like /report?id=6401237|abcd&s=1 from the report overview.
+
+        - tab can be provided (e.g., 1 for 'All'); if None, default server tab is used.
+        - max_items limits how many links to return to avoid heavy scans.
+        """
+        url = f"{self.server_url}/report"
+        try:
+            params = {"s": int(tab)} if tab is not None else None
+        except Exception:
+            params = None
+        try:
+            res = self.session.get(url, params=params)
+            res.raise_for_status()
+            html = getattr(res, "text", "") or ""
+            try:
+                from config.config import settings as _cfg
+                if bool(getattr(_cfg, 'REPORT_DEBUG_DUMP', False)):
+                    Path("logs").mkdir(parents=True, exist_ok=True)
+                    (Path("logs")/"reports_list.html").write_text(html, encoding="utf-8")
+            except Exception:
+                pass
+            # Extract links: support both absolute and relative hrefs used by overview
+            import re
+            hrefs = []
+            patterns = [
+                r'href=\"(/report\\?id=[^\"\s>]+)\"',  # absolute
+                r'href=\"(/report/overview\\?id=[^\"\s>]+)\"',  # overview absolute
+                r'href=\"(\?id=[^\"\s>]+)\"',  # relative
+            ]
+            for pat in patterns:
+                for m in re.finditer(pat, html):
+                    href = m.group(1)
+                    # Normalize relative '?id=...' to '/report?id=...'
+                    if href.startswith('?'):
+                        href = '/report' + href
+                    hrefs.append(href)
+                    if len(hrefs) >= max_items:
+                        break
+                if len(hrefs) >= max_items:
+                    break
+            # Deduplicate preserving order
+            seen = set()
+            out = []
+            for h in hrefs:
+                if h not in seen:
+                    out.append(h)
+                    seen.add(h)
+            return out
+        except Exception as e:
+            logging.warning(f"[Reports] Could not list report links: {e}")
+            return []
+
+    def fetch_report_detail(self, href_or_id: str) -> str | None:
+        """Fetch a report detail HTML by href '/report?id=...&s=1' or id '123|hash'."""
+        try:
+            # Normalize input to a full '/report?...' path if it's a relative or id
+            href = href_or_id
+            if href.startswith('/report'):
+                url = f"{self.server_url}{href}"
+            elif href.startswith('?'):
+                url = f"{self.server_url}/report{href}"
+            elif 'id=' in href and ('?' in href or '&' in href):
+                # looks like a query fragment; ensure '/report' prefix
+                if not href.startswith('/'): href = '/' + href
+                if not href.startswith('/report'):
+                    href = '/report' + href
+                url = f"{self.server_url}{href}"
+            elif "|" in href:
+                # plain id in form 'num|hash'
+                url = f"{self.server_url}/report?id={href}"
+            else:
+                # fallback: treat as numeric id
+                url = f"{self.server_url}/report?id={href}&s=1"
+            res = self.session.get(url)
+            res.raise_for_status()
+            html = getattr(res, "text", "") or ""
+            try:
+                from config.config import settings as _cfg
+                if bool(getattr(_cfg, 'REPORT_DEBUG_DUMP', False)):
+                    Path("logs").mkdir(parents=True, exist_ok=True)
+                    import re as _re
+                    fname = _re.sub(r"[^\w\-\|]", "_", href_or_id)[:80]
+                    (Path("logs")/f"report_{fname}.html").write_text(html, encoding="utf-8")
+            except Exception:
+                pass
+            return html
+        except Exception as e:
+            logging.warning(f"[Reports] Could not fetch detail for {href_or_id}: {e}")
+            return None
+
+    def get_unread_report_count(self) -> int:
+        """Read the navbar reports indicator to estimate unread report count.
+
+        Looks for: <a class="reports" ...><div class="indicator">N</div></a>
+        on a common page like /dorf1.php. Returns 0 if not found.
+        """
+        try:
+            res = self.session.get(f"{self.server_url}/dorf1.php")
+            res.raise_for_status()
+            html = getattr(res, "text", "") or ""
+            try:
+                # Fast regex to avoid parser dependency for this small task
+                import re as _re
+                m = _re.search(r"<a[^>]*class=\"[^\"]*reports[^\"]*\"[^>]*>.*?<div[^>]*class=\"[^\"]*indicator[^\"]*\"[^>]*>([^<]+)</div>", html, _re.IGNORECASE | _re.DOTALL)
+                if not m:
+                    return 0
+                txt = (m.group(1) or "").strip()
+                # strip bidi marks and plus sign
+                txt = txt.replace("\u202d", "").replace("\u202c", "").replace("+", "").strip()
+                # keep only digits
+                digits = "".join(ch for ch in txt if ch.isdigit())
+                return int(digits) if digits else 0
+            except Exception:
+                return 0
+        except Exception:
+            return 0
+
+    def list_unread_reports(self, tab: int | None = None, max_items: int = 100) -> list[dict]:
+        """Parse the report overview and return unread entries with ids and coords.
+
+        Output items: { 'href': str, 'id': str|None, 'coords': (int,int)|None, 'time': str|None }
+        """
+        url = f"{self.server_url}/report"
+        params = {"s": int(tab)} if tab is not None else None
+        try:
+            res = self.session.get(url, params=params)
+            res.raise_for_status()
+            html = getattr(res, "text", "") or ""
+        except Exception:
+            return []
+
+        import re as _re
+        out: list[dict] = []
+        # Split by table rows in overview; look for 'newMessage' class indicating unread
+        for m in _re.finditer(r"<tr[\s\S]*?</tr>", html, _re.IGNORECASE):
+            row = m.group(0)
+            if 'newMessage' not in row:
+                continue
+            # Extract link href
+            href = None
+            mh = _re.search(r'href=\"([^\"]*\?id=[^\"]+)\"', row)
+            if mh:
+                href = mh.group(1)
+                if href.startswith('?'):
+                    href = '/report' + href
+            # Extract id param
+            rid = None
+            if href:
+                try:
+                    import urllib.parse as _up
+                    qs = _up.parse_qs(_up.urlsplit(href).query)
+                    rid = (qs.get('id') or [None])[0]
+                except Exception:
+                    rid = None
+            # Extract coordinates inside row
+            coords = None
+            mc = _re.search(r"\(([-]?\d{1,3})\|([-]?\d{1,3})\)", row)
+            if mc:
+                try:
+                    coords = (int(mc.group(1)), int(mc.group(2)))
+                except Exception:
+                    coords = None
+            # Extract time text (optional)
+            mt = _re.search(r"<td class=\"dat\">\s*([^<]+)<", row)
+            time_txt = mt.group(1).strip() if mt else None
+            out.append({"href": href, "id": rid, "coords": coords, "time": time_txt})
+            if len(out) >= max_items:
+                break
+        return out
+
+    @staticmethod
+    def _extract_coords_from_report_html(html: str) -> tuple[int, int] | None:
+        """Best-effort coordinates extraction from report detail HTML."""
+        try:
+            import re
+            # Common form is (x|y) in defender target link/title
+            for m in re.finditer(r"\(([-]?\d{1,3})\|([-]?\d{1,3})\)", html):
+                x = int(m.group(1)); y = int(m.group(2))
+                return x, y
+        except Exception:
+            pass
+        return None
+
+    def find_latest_oasis_report(self, x: int | None, y: int | None, tab: int | None = 1, scan_limit: int = 30) -> dict | None:
+        """Scan recent reports, returning the first whose coordinates match (x|y).
+
+        Returns dict with keys: id (if derivable), html, href.
+        """
+        if x is None or y is None:
+            return None
+        hrefs = self.list_report_links(tab=tab, max_items=scan_limit)
+        for href in hrefs:
+            html = self.fetch_report_detail(href)
+            if not html:
+                continue
+            coords = self._extract_coords_from_report_html(html)
+            if coords and coords == (x, y):
+                # Try to pull id from href
+                rid = None
+                try:
+                    import urllib.parse as _up
+                    qs = _up.parse_qs(_up.urlsplit(href).query)
+                    rid = (qs.get("id") or [None])[0]
+                except Exception:
+                    rid = None
+                return {"id": rid, "href": href, "html": html}
+        return None
 
     def _parse_hero_attack_from_html(self, html: str) -> int | None:
         """Best-effort parse of the hero's fighting strength (attack) from hero pages.

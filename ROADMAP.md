@@ -28,6 +28,8 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
 - [x] Learning loop: pending → report parse → multiplier nudge (configurable thresholds/steps)
 - [x] Per-oase multiplier toegepast op escort aantallen
 - [x] Centrale unit-catalogus (u↔t, namen per stam)
+- [x] Global toggle: `LEARNING_ENABLE` (zet learning/pendings/ReportChecker uit)
+- [x] Cycle statusregel met report‑samenvatting (processed/no pendings/no unread)
 - [ ] Escort planner 2.0 (multi-unit fallback + safety factors per dier-type)
 - [ ] Cooldown per oase op recente nederlaag (tijdelijk skippen)
 
@@ -72,6 +74,13 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
   - Achtergrondthread start automatisch kortste geschikte adventure (config: health/min/max duur/gevaar)
   - Fallback via HTML‑form/URL submit; debug dumps bij fouten
   - Volgende stap: resultaten loggen (loot/XP) voor rapportage
+
+## 9️⃣ Progressive Tasks (nieuw)
+**Doel: automatisch claimen van openstaande beloningen.**
+- [x] Parse `/tasks` (inline JSON en data-attributes)
+- [x] POST `/api/v1/progressive-tasks/collectReward` met `X-Version` en `X-Requested-With`
+- [x] Optionele HUD refresh na elke claim
+- [x] Toggles: `PROGRESSIVE_TASKS_ENABLE`, `PROGRESSIVE_TASKS_REFRESH_HUD`
 
 ## 6️⃣ Scheduler & Multi-account
 **Doel: flexibel draaien met meerdere profielen.**

@@ -15,6 +15,7 @@ venv/
 
 # Logs or debug output
 *.log
+logs/
 
 # Byte-compiled / cache files
 *.pyc

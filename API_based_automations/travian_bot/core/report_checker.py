@@ -79,6 +79,17 @@ def process_ready_pendings(api, interval_sec: int = 60) -> None:
     Poll periodiek: voor pendings met ts_sent + buffer, haal nieuwste report voor
     die oase op en update LearningStore.
     """
+    try:
+        from config.config import settings as _cfg
+    except Exception:
+        class _CfgFallback:
+            LEARNING_ENABLE = True
+        _cfg = _CfgFallback()
+    if not bool(getattr(_cfg, 'LEARNING_ENABLE', True)):
+        # Learning disabled → do nothing
+        if verbose:
+            print("[RC] Learning disabled; skipping.")
+        return 0
     ls = LearningStore()
     while True:
         pendings = _load_pending()
@@ -179,6 +190,16 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
 
     Als verbose=True, print voortgang per pending (handig via Tools-menu).
     """
+    try:
+        from config.config import settings as _cfg
+    except Exception:
+        class _CfgFallback:
+            LEARNING_ENABLE = True
+        _cfg = _CfgFallback()
+    if not bool(getattr(_cfg, 'LEARNING_ENABLE', True)):
+        if verbose:
+            print("[RC] Learning disabled; skipping.")
+        return 0
     ls = LearningStore()
     pendings = _load_pending()
     changed = False
@@ -186,6 +207,19 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
 
     now_ts = time.time()
     keep: list[dict] = []
+    # Optional early-exit if geen ongelezen reports in navbar
+    try:
+        from config.config import settings as _cfg
+        if bool(getattr(_cfg, 'REPORT_USE_INDICATOR', True)):
+            unread = int(api.get_unread_report_count())
+            if verbose:
+                print(f"[RC] Unread reports indicator: {unread}")
+            if unread <= 0 and pendings:
+                if verbose:
+                    print("[RC] No unread reports; skipping scan this pass.")
+                return 0
+    except Exception:
+        pass
     if verbose:
         print(f"[RC] Starting report processing: {len(pendings)} pending item(s)…")
     for item in pendings:

@@ -25,6 +25,7 @@ from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from core.report_checker import process_ready_pendings_once
 from features.defense.attack_detector import run_attack_detector_thread
+from features.tasks.progressive_tasks import collect_rewards_for_all_villages, count_collectible_rewards
 
 # === CONFIG (centralized) ===
 try:
@@ -305,13 +306,30 @@ def _write_config_yaml(updates: dict):
 def tools_menu(api: TravianAPI):
     """Menu for tools & detectors (e.g., attack detector)."""
     while True:
-        print("""
+        try:
+            from config.config import settings as _cfg
+        except Exception:
+            class _Tmp:
+                LEARNING_ENABLE = True
+            _cfg = _Tmp()
+        learning_enabled = bool(getattr(_cfg, 'LEARNING_ENABLE', True))
+
+        opt4 = "[4] Process reports now (one pass)"
+        opt7 = "[7] Show learned oasis multipliers"
+        if not learning_enabled:
+            opt4 += " (disabled)"
+            opt7 += " (disabled)"
+
+        print(f"""
 🛠️ Tools & Detectors
 [1] Toggle Attack Detector (enable/disable)
 [2] Set Discord Webhook URL
 [3] Test Discord Notification (with screenshot)
-[4] Process reports now (one pass)
-[5] Back to main menu
+{opt4}
+[5] Collect task rewards now (one pass)
+[6] Show unread reports (IDs + coords)
+{opt7}
+[8] Back to main menu
 """)
         sel = input("Select an option: ").strip()
         if sel == "1":
@@ -353,12 +371,64 @@ def tools_menu(api: TravianAPI):
                 print(f"❌ Error: {e}")
         elif sel == "4":
             try:
-                # Verbose one-pass processing with progress output
-                n = process_ready_pendings_once(api, verbose=True)
-                print(f"✅ ReportChecker processed {n} pending(s).")
+                from config.config import settings as _cfg
+                if not bool(getattr(_cfg, 'LEARNING_ENABLE', True)):
+                    print("ℹ️ Learning is disabled; report processing is not active.")
+                else:
+                    # Verbose one-pass processing with progress output
+                    n = process_ready_pendings_once(api, verbose=True)
+                    print(f"✅ ReportChecker processed {n} pending(s).")
             except Exception as e:
                 print(f"❌ Failed to process reports: {e}")
         elif sel == "5":
+            try:
+                cnt = collect_rewards_for_all_villages(api, verbose=True)
+                print(f"✅ Collected {cnt} progressive reward(s).")
+            except Exception as e:
+                print(f"❌ Failed to collect rewards: {e}")
+        elif sel == "6":
+            try:
+                items = api.list_unread_reports(max_items=50)
+                if not items:
+                    print("No unread reports found.")
+                else:
+                    print(f"Unread reports ({len(items)}):")
+                    for it in items:
+                        cid = it.get('id') or '?'
+                        crd = it.get('coords')
+                        when = it.get('time') or ''
+                        crd_txt = f"{crd[0]}|{crd[1]}" if isinstance(crd, tuple) else "?"
+                        print(f"- id={cid} at ({crd_txt}) {when}")
+            except Exception as e:
+                print(f"❌ Failed to list unread reports: {e}")
+        elif sel == "7":
+            try:
+                from config.config import settings as _cfg
+                if not bool(getattr(_cfg, 'LEARNING_ENABLE', True)):
+                    print("ℹ️ Learning is disabled; no multipliers to show.")
+                else:
+                    from core.learning_store import LearningStore  # type: ignore
+                    ls = LearningStore()
+                    data = getattr(ls, 'data', {}) or {}
+                    if not data:
+                        print("No learned multipliers yet.")
+                    else:
+                        print("Learned multipliers (oasis → mul, last):")
+                        # Show up to 20 most recent by 'last.ts' if available
+                        items = []
+                        for k, v in data.items():
+                            ts = ((v or {}).get('last') or {}).get('ts') or ''
+                            items.append((ts, k, v))
+                        items.sort(reverse=True)
+                        for ts, k, v in items[:20]:
+                            m = v.get('multiplier')
+                            last = v.get('last')
+                            lp = last.get('loss_pct') if isinstance(last, dict) else None
+                            lp_txt = f", loss={lp:.0%}" if isinstance(lp, (int, float)) else ''
+                            print(f"- {k}: {m:.2f}{lp_txt} (last={ts})")
+            except Exception as e:
+                print(f"❌ Failed to show multipliers: {e}")
+        elif sel == "8":
             return
         else:
             print("❌ Invalid option.")
@@ -543,6 +613,17 @@ def main():
     elif choice == "7":
         print("\n🤖 Starting full automation mode...")
         _log_info("Starting Full Auto Mode.")
+        try:
+            # Show key feature toggles at startup for clarity
+            feat_reports = bool(getattr(settings, 'PROCESS_REPORTS_IN_AUTOMATION', True))
+            feat_adv = bool(getattr(settings, 'HERO_ADVENTURE_ENABLE', True))
+            feat_tasks = bool(getattr(settings, 'PROGRESSIVE_TASKS_ENABLE', True))
+            print("\n⚙️  Feature Toggles:")
+            print(f"- Reports processing: {'ENABLED' if feat_reports else 'DISABLED'}")
+            print(f"- Hero adventures:   {'ENABLED' if feat_adv else 'DISABLED'}")
+            print(f"- Progressive tasks: {'ENABLED' if feat_tasks else 'DISABLED'}\n")
+        except Exception:
+            pass
         
         # Read configurable toggle for first cycle farm-lists behavior
         skip_farm_lists_first_run = bool(getattr(settings, "SKIP_FARM_LISTS_FIRST_RUN", False))
@@ -609,6 +690,36 @@ def main():
                 _log_info("Cycle started.")
                 cycle_start_ts = time.time()
 
+                # Cycle status: unread reports and task rewards available
+                try:
+                    unread = 0
+                    try:
+                        unread = int(api.get_unread_report_count())
+                    except Exception:
+                        unread = 0
+
+                    parts = [f"📬 Unread reports: {unread}"]
+
+                    # Progressive task rewards available count
+                    if bool(getattr(settings, 'PROGRESSIVE_TASKS_ENABLE', True)):
+                        try:
+                            avail = int(count_collectible_rewards(api))
+                        except Exception:
+                            avail = 0
+                        parts.append(f"🎁 Task rewards: {avail}")
+
+                    # Open hero adventures count
+                    if bool(getattr(settings, 'HERO_ADVENTURE_ENABLE', True)):
+                        try:
+                            advs = api.list_hero_adventures() or []
+                            parts.append(f"🗺️ Adventures: {len(advs)}")
+                        except Exception:
+                            pass
+
+                    print("[Main] " + " | ".join(parts))
+                except Exception:
+                    pass
+
                 # --- Place your farming/oasis logic here (existing repo code) ---
                 # Optional: auto-run new village preset if explicitly toggled in YAML
                 try:
@@ -625,6 +736,18 @@ def main():
                             print("[Main] 🦸 Hero adventure started.")
                 except Exception as _adv_e:
                     _log_warn(f"Hero adventure attempt failed: {_adv_e}")
+
+                # Collect progressive task rewards (per village)
+                try:
+                    if bool(getattr(settings, 'PROGRESSIVE_TASKS_ENABLE', True)):
+                        import random as _rnd, time as _t
+                        # Small jitter before interacting with tasks page
+                        _t.sleep(_rnd.uniform(0.2, 0.9))
+                        got = collect_rewards_for_all_villages(api, verbose=False)
+                        if got:
+                            print(f"[Main] 🎁 Collected {got} task reward(s).")
+                except Exception as _tasks_e:
+                    _log_warn(f"Progressive tasks collection failed: {_tasks_e}")
 
                 # Small human-like pause before starting planner
                 try:
@@ -673,13 +796,43 @@ def main():
                 # Report checker – sequential pass (avoid simultaneous activity)
                 try:
                     from config.config import settings as _cfg
-                    if bool(getattr(_cfg, 'PROCESS_REPORTS_IN_AUTOMATION', True)):
+                    learning_on = bool(getattr(_cfg, 'LEARNING_ENABLE', True))
+                    reports_on = bool(getattr(_cfg, 'PROCESS_REPORTS_IN_AUTOMATION', True))
+                    status_txt = None
+                    if learning_on and reports_on:
+                        # quick pendings count
+                        pendings_cnt = 0
+                        try:
+                            import json as _json
+                            ppath = Path("database/learning/pending.json")
+                            if ppath.exists():
+                                pendings_cnt = len(_json.loads(ppath.read_text(encoding='utf-8')) or [])
+                        except Exception:
+                            pendings_cnt = 0
+                        # unread indicator
+                        unread_now = 0
+                        try:
+                            unread_now = int(api.get_unread_report_count())
+                        except Exception:
+                            unread_now = 0
                         import random as _rnd, time as _t
                         _t.sleep(_rnd.uniform(0.3, 1.0))
                         processed = process_ready_pendings_once(api)
                         _log_info(f"ReportChecker pass processed {processed} pending(s) this cycle.")
+                        if processed > 0:
+                            status_txt = f"processed {processed}"
+                        else:
+                            if pendings_cnt <= 0:
+                                status_txt = "no pendings"
+                            elif unread_now <= 0:
+                                status_txt = "skipped (no unread)"
+                            else:
+                                status_txt = "processed 0"
                     else:
+                        status_txt = "disabled"
                         _log_info("ReportChecker pass skipped (disabled in config).")
+                    if status_txt:
+                        print(f"[Main] 📨 Reports: {status_txt}")
                 except Exception as _e:
                     _log_warn(f"ReportChecker pass failed: {_e}")
 

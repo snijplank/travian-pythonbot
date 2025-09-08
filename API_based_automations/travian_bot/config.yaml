@@ -9,6 +9,8 @@ cadence:
   JITTER_MINUTES: 10
   # Index of the game world in the lobby (0 = first entry shown in lobby).
   SERVER_SELECTION: 0
+  # Probability (0..1) to skip an entire cycle (human-like idle).
+  SKIP_CYCLE_PROB: 0.0
 limiter:
   # Enable a hard daily cap on total runtime (spread across blocks).
   ENABLE_CYCLE_LIMITER: true
@@ -16,6 +18,17 @@ limiter:
   DAILY_MAX_RUNTIME_MINUTES: 600
   # Split the day into N blocks; sleeps between blocks to reduce bursts.
   DAILY_BLOCKS: 3
+  # Add variance to the daily cap (e.g., 0.1 = ±10%).
+  DAILY_VARIANCE_PCT: 0.0
+  # If >0, override block size with random minutes in this range.
+  BLOCK_SIZE_MIN: 45
+  BLOCK_SIZE_MAX: 200
+  # Random rest minutes between blocks (inclusive).
+  REST_MIN_MINUTES: 30
+  REST_MAX_MINUTES: 90
+  # Optional quiet windows where cycles are skipped (HH:MM-HH:MM, local time).
+  QUIET_WINDOWS:
+  # - "01:00-06:00"
 logging:
   # Log verbosity and destination directory.
   # DEBUG | INFO | WARNING | ERROR | CRITICAL
@@ -38,6 +51,10 @@ operation:
   # Jitter before/after large operations (seconds).
   OP_JITTER_MIN_SEC: 0.7
   OP_JITTER_MAX_SEC: 2.5
+  # Probability (0..1) to insert a coffee break between cycles.
+  OP_COFFEE_BREAK_PROB: 0.1
+  OP_COFFEE_BREAK_MIN_MINUTES: 2
+  OP_COFFEE_BREAK_MAX_MINUTES: 6
 map_and_farms:
   # Neutral page views and farm-list subset selection for stealth.
   # Probability (0..1) to open dorf1/2 before big actions.
@@ -48,6 +65,10 @@ map_and_farms:
   FARM_LIST_SUBSET_MIN: 1
   # Maximum number of farm lists to send this cycle (per village).
   FARM_LIST_SUBSET_MAX: 3
+  # Randomize village order per cycle.
+  SHUFFLE_VILLAGE_ORDER: true
+  # Chance (0..1) to skip farm lists for a village this cycle.
+  FARM_LIST_RANDOM_SKIP_PROB: 0.15
 raiding:
   # Farm-list behavior and escort priority (t1..t10 for current tribe).
   # If true, skip farm lists on the first cycle in Full Auto.
@@ -67,6 +88,8 @@ raiding:
 # Enable autoplan for building a new village following a standard preset.
 NEW_VILLAGE_PRESET_ENABLE: false
 learning:
+  # Enable/disable adaptive multipliers from combat reports.
+  LEARNING_ENABLE: true
   # Per-oasis escort multiplier learning and thresholds.
   # Lower bound for per-oasis escort multiplier.
   LEARNING_MIN_MUL: 0.8
@@ -106,16 +129,18 @@ attack_detector:
 
 reports:
   # If false, the automated cycle will not process reports; use Tools menu to run manually.
-  PROCESS_REPORTS_IN_AUTOMATION: false
+  PROCESS_REPORTS_IN_AUTOMATION: true
   # Optional: minimal seconds to wait before attempting to read a report after sending.
   REPORT_MIN_WAIT_SEC: 60
   # Debug: log/dump report list pages to help diagnose matching issues.
   REPORT_DEBUG_LOG: false
-  REPORT_DEBUG_DUMP: false
+  REPORT_DEBUG_DUMP: true
+  # Skip scanning when navbar shows no unread reports (lighter & human-like)
+  REPORT_USE_INDICATOR: true
 
 hero_adventures:
   # Automatically start hero adventures as soon as they appear.
-  HERO_ADVENTURE_ENABLE: true
+  HERO_ADVENTURE_ENABLE: false
   # Minimal hero health percentage to allow adventures.
   HERO_ADVENTURE_MIN_HEALTH: 40
   # Skip adventures longer than this many minutes (0 = no limit).
@@ -125,6 +150,12 @@ hero_adventures:
   # Background watcher poll interval and random jitter (seconds).
   HERO_ADVENTURE_POLL_INTERVAL_SEC: 90
   HERO_ADVENTURE_RANDOM_JITTER_SEC: 45
+
+progressive_tasks:
+  # Automatically collect progressive task rewards per village.
+  PROGRESSIVE_TASKS_ENABLE: true
+  # Refresh hero HUD after each collect (matches UI behavior).
+  PROGRESSIVE_TASKS_REFRESH_HUD: true
 
 building_guard:
   # Wait/retry building upgrades when resources are insufficient or queue is busy.

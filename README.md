@@ -33,6 +33,23 @@ Automated farming, oasis raiding, and hero operations for Travian Legends with a
   - Multi-village support
   - Continuous raiding with 50-minute intervals
 
+- **Progressive Tasks (Rewards) — NEW**
+  - Detect and collect progressive task rewards per village
+  - Uses site headers (`X-Version`, `X-Requested-With`) and `/api/v1/progressive-tasks/collectReward`
+  - Optional HUD refresh after each collect
+  - Toggle: `progressive_tasks.PROGRESSIVE_TASKS_ENABLE`, `progressive_tasks.PROGRESSIVE_TASKS_REFRESH_HUD`
+
+- **Report Reading + Learning (Toggleable) — UPDATED**
+  - Scrapes `/report` overview and normalizes both absolute and relative links
+  - Fetches detail pages and derives result/loss% to adjust escort multiplier per oasis
+  - Cycle status now prints succinct reports status (processed/skipped/no pendings)
+  - Global toggle to disable learning entirely: `learning.LEARNING_ENABLE`
+  - When disabled: no pendings written, ReportChecker disabled, multiplier fixed at 1.0
+
+- **Hero Adventures — UPDATED**
+  - Background thread auto-starts adventures when available (configurable)
+  - Cycle header displays count of available adventures
+
 ## Quick Start
 
 1) Create venv and install deps
@@ -129,6 +146,7 @@ All runtime configuration is read from `API_based_automations/travian_bot/config
   - `SKIP_FARM_LISTS_FIRST_RUN`: `true/false`
   - `ESCORT_UNIT_PRIORITY`: preferred `tX` order
 - Learning loop (escort adjustments)
+  - `LEARNING_ENABLE`: `true|false` (global on/off)
   - `LEARNING_MIN_MUL`, `LEARNING_MAX_MUL`
   - `LEARNING_LOSS_THRESHOLD_LOW`, `LEARNING_LOSS_THRESHOLD_HIGH`
   - `LEARNING_STEP_UP_ON_LOST`
@@ -137,17 +155,34 @@ All runtime configuration is read from `API_based_automations/travian_bot/config
 - Credentials
   - `TRAVIAN_EMAIL`, `TRAVIAN_PASSWORD`
 
+- Progressive tasks
+  - `PROGRESSIVE_TASKS_ENABLE`: `true|false`
+  - `PROGRESSIVE_TASKS_REFRESH_HUD`: `true|false`
+
+- Reports
+  - `PROCESS_REPORTS_IN_AUTOMATION`: `true|false`
+  - `REPORT_MIN_WAIT_SEC`: seconds to wait before reading a report after a send
+  - `REPORT_USE_INDICATOR`: use navbar unread indicator to skip heavy scans when zero
+
 ## Learning Loop & Reporting
 
-- After a successful raid the bot writes a pending to `database/learning/pending.json`.
-- The Report Checker (daemon) waits ~5 minutes, finds the latest report, and nudges the multiplier up/down based on result/loss%.
+- After a successful raid the bot writes a pending to `database/learning/pending.json` (when `LEARNING_ENABLE: true`).
+- The Report Checker waits `REPORT_MIN_WAIT_SEC`, finds the latest matching report, and nudges the multiplier based on result/loss%.
 - Next raids to the same oasis apply the updated multiplier to escort sizes.
+- When `LEARNING_ENABLE: false`, no pendings are written and the ReportChecker is skipped; multiplier remains 1.0.
 
 Per‑cycle report (printed by the launcher):
 - Raids sent/skipped + skip reasons summary
 - Hero status (present/health/level)
 - Recent learning multiplier changes
 Raw metrics are stored in `database/metrics.json` and counters reset each cycle.
+
+Cycle header status (human‑readable)
+- Unread reports count, task rewards available, adventure count
+- Example: `[Main] 📬 Unread reports: 3 | 🎁 Task rewards: 2 | 🗺️ Adventures: 1`
+
+Report processing status (per cycle)
+- Example: `[Main] 📨 Reports: processed 1` or `no pendings` or `skipped (no unread)`
 
 ## Attack Detector (OCR → Discord)
 
