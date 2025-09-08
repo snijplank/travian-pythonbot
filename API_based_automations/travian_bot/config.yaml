@@ -132,3 +132,6 @@ building_guard:
   BUILD_GUARD_MAX_RETRIES: 5
   BUILD_GUARD_WAIT_MIN_SEC: 60
   BUILD_GUARD_WAIT_MAX_SEC: 180
+  # Auto-remediate specific blockers
+  BUILD_FREECROP_GUARD_ENABLE: true   # upgrade a cropland once when free crop is too low
+  BUILD_STORAGE_GUARD_ENABLE: true    # upgrade granary/warehouse once when storage is full
