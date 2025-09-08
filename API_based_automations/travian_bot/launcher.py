@@ -700,13 +700,21 @@ def main():
 
                     parts = [f"📬 Unread reports: {unread}"]
 
-                    # Progressive task rewards available count
+                    # Progressive task rewards available count (+ top-bar indicator fallback)
                     if bool(getattr(settings, 'PROGRESSIVE_TASKS_ENABLE', True)):
                         try:
                             avail = int(count_collectible_rewards(api))
                         except Exception:
                             avail = 0
-                        parts.append(f"🎁 Task rewards: {avail}")
+                        # If parser finds none, but the top bar shows the quest bubble, indicate 1+
+                        try:
+                            bubble = bool(api.has_task_reward_indicator())
+                        except Exception:
+                            bubble = False
+                        if avail <= 0 and bubble:
+                            parts.append("🎁 Task rewards: 1+")
+                        else:
+                            parts.append(f"🎁 Task rewards: {avail}")
 
                     # Open hero adventures count
                     if bool(getattr(settings, 'HERO_ADVENTURE_ENABLE', True)):

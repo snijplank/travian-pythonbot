@@ -48,6 +48,13 @@ def collect_rewards_for_all_villages(api, verbose: bool = False) -> int:
                 res = api.collect_progressive_reward(it)
                 if res and res.get("success"):
                     successes += 1
+                    try:
+                        qt = it.get("questType")
+                        b = it.get("buildingId")
+                        tl = it.get("targetLevel")
+                        logging.info(f"[Tasks] ✅ Collected reward in {vname} (questType={qt}, buildingId={b}, targetLevel={tl}).")
+                    except Exception:
+                        logging.info(f"[Tasks] ✅ Collected reward in {vname}.")
                     # Optionally refresh HUD (UI does this)
                     try:
                         from config.config import settings as _cfg

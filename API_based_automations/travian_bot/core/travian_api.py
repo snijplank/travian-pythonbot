@@ -1293,6 +1293,19 @@ class TravianAPI:
                 break
         return out
 
+    def has_task_reward_indicator(self) -> bool:
+        """Detects the top-bar 'new quest' speech bubble that indicates claimable tasks.
+
+        Looks for elements like <div class="bigSpeechBubble newQuestSpeechBubble"> on dorf1.
+        """
+        try:
+            res = self.session.get(f"{self.server_url}/dorf1.php")
+            res.raise_for_status()
+            html = getattr(res, "text", "") or ""
+            return ("newQuestSpeechBubble" in html) or ("progressiveTasksTitle" in html)
+        except Exception:
+            return False
+
     @staticmethod
     def _extract_coords_from_report_html(html: str) -> tuple[int, int] | None:
         """Best-effort coordinates extraction from report detail HTML."""
