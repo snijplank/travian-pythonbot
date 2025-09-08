@@ -151,6 +151,23 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
                     loot_total = base.get("total_loot_total")
                     loot_txt = f", loot_total={loot_total}" if isinstance(loot_total, int) and loot_total > 0 else ""
                     logging.info(f"[Baseline] {key}: last={last_r}{avg_txt}{loot_txt}, mul={mul:.2f}")
+                # Also log scheduling context: when last sent and due in
+                last_sent_ts = ls.get_last_sent(key)
+                def _fmt_sec(s: float) -> str:
+                    s = max(0, int(s))
+                    m, s = divmod(s, 60)
+                    h, m = divmod(m, 60)
+                    if h > 0:
+                        return f"{h}h{m:02d}m{s:02d}s"
+                    return f"{m}m{s:02d}s"
+                if last_sent_ts:
+                    elapsed = now - float(last_sent_ts)
+                    due_in = (float(last_sent_ts) + tgt_interval) - now
+                    logging.info(
+                        f"[Schedule] {key}: last_sent {_fmt_sec(elapsed)} ago; target_interval={_fmt_sec(tgt_interval)}; due in {_fmt_sec(due_in)}"
+                    )
+                else:
+                    logging.info(f"[Schedule] {key}: last_sent=never; target_interval={_fmt_sec(tgt_interval)}; due now")
             except Exception:
                 pass
         base_total = sum(int(u.get("group_size", 0)) for u in units)
