@@ -145,6 +145,11 @@ Doel: de Hero Raider onafhankelijk laten plannen/uitvoeren, zodat de main cycle 
 3. CLI flags (–full-auto, –server, –headless) en farm/oasis TTY editor
 4. Discord/Telegram notificaties (minimaal: cycle done + errors)
 5. JSON logging toggle + basis unit tests (mapping/parsers)
+6. ReportChecker: raid_targets_stats.json wordt niet correct bijgewerkt
+   - Audit volledige pipeline: overview → detail → result/loss/bounty parse → write
+   - Extra debug logging + toggles; dump detail HTML bij mismatch
+   - Verifieer relative links vs absolute; tab `s` parameter
+   - Unit/golden tests met HTML fixtures (Bounty-row, loss parsing)
 
 ➡️ Opvolgende prioriteiten (dorp & held)
 6. Resourceveld‑upgrades per dorp (profielen + budgetten)

@@ -78,6 +78,57 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
         logging.error("Could not fetch troops. Exiting.")
         return sent_raids
 
+    # Optional early exit: if troop bank cannot satisfy any distance range composition
+    try:
+        early_exit_on_insufficient = bool(getattr(_cfg, 'OASIS_EARLY_EXIT_IF_INSUFFICIENT', True))
+    except Exception:
+        early_exit_on_insufficient = True
+    if early_exit_on_insufficient:
+        def _can_satisfy_any_range() -> bool:
+            for dr in (distance_ranges or []):
+                reqs = {}
+                try:
+                    for u in (dr.get("units") or []):
+                        uc = str(u.get("unit_code"))
+                        gs = int(u.get("group_size", 0))
+                        if gs <= 0:
+                            continue
+                        reqs[uc] = reqs.get(uc, 0) + gs
+                    if not reqs:
+                        continue
+                    ok = True
+                    for uc, need in reqs.items():
+                        key_u = t_to_u(tribe_id, uc)
+                        have = int(troops_info.get(key_u, troops_info.get(uc, 0)) or 0)
+                        if have < need:
+                            ok = False
+                            break
+                    if ok:
+                        return True
+                except Exception:
+                    continue
+            return False
+        if not _can_satisfy_any_range():
+            try:
+                # Determine a minimal required sum for messaging only
+                min_need = None
+                for dr in (distance_ranges or []):
+                    total = 0
+                    for u in (dr.get("units") or []):
+                        gs = int(u.get("group_size", 0))
+                        if gs > 0:
+                            total += gs
+                    if total > 0:
+                        min_need = total if min_need is None else min(min_need, total)
+                bank = sum(int(v) for v in troops_info.values() if isinstance(v, int))
+                if min_need is not None:
+                    logging.info(f"[Oasis] Insufficient troop bank: need ≥ {min_need}, have {bank}. Skipping oasis loop.")
+                else:
+                    logging.info("[Oasis] Insufficient troop bank for any configured range. Skipping oasis loop.")
+            except Exception:
+                logging.info("[Oasis] Insufficient troop bank. Skipping oasis loop.")
+            return sent_raids
+
     # Build scheduling view: due based on last_sent and interval+jitter
     try:
         # Use a different local name to avoid shadowing the module-level _cfg
@@ -120,6 +171,13 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
     # Sort by due first (overdue first), then by distance
     sched.sort(key=lambda t: (t[0], t[2]))
     ordered_targets = [(coords, oases[coords]) for _, coords, _ in sched]
+    # Cap excessive insufficient skips to avoid noisy cycles
+    try:
+        insufficient_cap = int(getattr(_cfg, 'OASIS_MAX_INSUFFICIENT_SKIPS', 10))
+    except Exception:
+        insufficient_cap = 10
+    insufficient_skips = 0
+
     for coords, tile in ordered_targets:
         # Check distance from stored value
         distance = tile["distance"]
@@ -193,6 +251,10 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
                 add_skip("insufficient_troops")
                 break
         if not can_raid:
+            insufficient_skips += 1
+            if insufficient_cap > 0 and insufficient_skips >= insufficient_cap:
+                logging.info(f"[Oasis] Reached insufficient skip cap ({insufficient_cap}); breaking oasis loop.")
+                break
             continue
 
         # Validate oasis is raidable

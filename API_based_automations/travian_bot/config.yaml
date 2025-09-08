@@ -4,7 +4,7 @@ credentials:
   TRAVIAN_PASSWORD: Sjaaktrekhaak24
 cadence:
   # Minutes to wait between automation cycles (base cadence).
-  WAIT_BETWEEN_CYCLES_MINUTES: 10
+  WAIT_BETWEEN_CYCLES_MINUTES: 3
   # Extra random offset in minutes added/subtracted each cycle to avoid patterns.
   JITTER_MINUTES: 10
   # Index of the game world in the lobby (0 = first entry shown in lobby).
@@ -164,6 +164,10 @@ oasis_scheduler:
   OASIS_INTERVAL_JITTER_SEC: 60
   # Cooldown after a LOST report before raiding the same target again (seconds).
   OASIS_COOLDOWN_ON_LOST_SEC: 1800
+  # If true, skip the entire oasis loop early when troop bank cannot satisfy any range.
+  OASIS_EARLY_EXIT_IF_INSUFFICIENT: true
+  # Cap the number of "Not enough ..." skips per cycle to reduce noise and requests.
+  OASIS_MAX_INSUFFICIENT_SKIPS: 10
 
 building_guard:
   # Wait/retry building upgrades when resources are insufficient or queue is busy.
