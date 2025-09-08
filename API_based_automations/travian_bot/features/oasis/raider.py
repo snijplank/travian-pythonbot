@@ -98,6 +98,17 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
 
         # Apply learning multiplier per oasis to adjust suggested group sizes
         mul = float(ls.get_multiplier(key)) if use_learning and ls else 1.0
+        # Optional: log baseline snapshot for visibility and future decisions
+        if use_learning and ls:
+            try:
+                base = ls.get_baseline(key)
+                avg = base.get("avg_loss_pct")
+                last_r = base.get("last_result")
+                if avg is not None or last_r:
+                    avg_txt = f", avg_loss={avg:.0%}" if isinstance(avg, (int, float)) else ""
+                    logging.info(f"[Baseline] {key}: last={last_r}{avg_txt}, mul={mul:.2f}")
+            except Exception:
+                pass
         base_total = sum(int(u.get("group_size", 0)) for u in units)
         # Adjust per-unit composition with multiplier, minimum 1 if base > 0
         adjusted_units = []
