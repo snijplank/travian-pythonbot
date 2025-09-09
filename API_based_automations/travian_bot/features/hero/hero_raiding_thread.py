@@ -201,17 +201,27 @@ def run_hero_raiding_thread(api):
                 safe_print(f"[HeroOasisClear] Sending hero to oasis at ({oasis['x']}, {oasis['y']})")
                 if try_send_hero_to_oasis(api, current_village, oasis):
                     safe_print(f"[HeroOasisClear] ✅ Hero sent to oasis at ({oasis['x']}, {oasis['y']})")
-                    return_time = (distance / 14) * 3600
+                    # Verify on rally point that hero is on mission; avoid false positives where only escort left
+                    time.sleep(2)
+                    remain = None
+                    try:
+                        remain = api.get_hero_return_eta()
+                    except Exception:
+                        remain = None
+                    if not (isinstance(remain, int) and remain > 0):
+                        safe_print("[HeroOasisClear] ⚠️ Send confirmed but hero not detected on mission; likely only escort sent. Skipping ETA.")
+                        sent = True
+                        break
                     # Persist ETA to avoid frequent polling while on mission
                     try:
-                        eta = time.time() + return_time + random.randint(60, 120)
+                        eta = time.time() + remain + random.randint(60, 120)
                         eta_path.parent.mkdir(parents=True, exist_ok=True)
                         import json as _json
                         eta_path.write_text(_json.dumps({"return_epoch": int(eta)}, ensure_ascii=False, indent=2), encoding='utf-8')
                     except Exception:
                         pass
-                    safe_print(f"[HeroOasisClear] Hero will return in {return_time / 3600:.2f} hours.")
-                    time.sleep(return_time + random.randint(60, 120))
+                    safe_print(f"[HeroOasisClear] Hero will return in {remain / 3600:.2f} hours.")
+                    time.sleep(remain + random.randint(60, 120))
                     sent = True
                     break
             if not sent:
