@@ -91,11 +91,12 @@ class HeroManager:
             
             is_in_known_village = self._is_known_village(village_id) if village_id else False
             
-            # Determine if hero is on mission
-            is_on_mission = "heroHome" not in data.get("statusInlineIcon", "")
+            # Determine if hero is on mission via inline icon; heroHome icon means at home
+            is_on_mission = "heroHome" not in (data.get("statusInlineIcon", "") or "")
             
             return HeroStatus(
-                is_present=data.get("healthStatus") == "alive",
+                # Present means at home (not on a mission). 'alive' only means hero is not dead.
+                is_present=(not is_on_mission),
                 health=data.get("health"),
                 is_on_mission=is_on_mission,
                 mission_return_time=None,  # TODO: Extract from mission info if available

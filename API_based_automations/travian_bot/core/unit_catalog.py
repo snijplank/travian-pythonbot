@@ -18,6 +18,7 @@ TRIBE_BASE = {
     3: 20,  # Gauls: u21..u30
     5: 40,  # Egyptians: u41..u50
     4: 60,  # Huns: u61..u70
+    7: 60,  # Unknown/Spartans? Map to Huns block for compatibility
 }
 
 # Unit names per tribe (local codes t1..t10)
@@ -27,6 +28,8 @@ UNIT_NAME_MAP = {
     3: {"t1": "Phalanx", "t2": "Swordsman", "t3": "Pathfinder", "t4": "Theutates Thunder", "t5": "Druidrider", "t6": "Haeduan", "t7": "Ram", "t8": "Trebuchet", "t9": "Chieftain", "t10": "Settler"},
     4: {"t1": "Mercenary", "t2": "Bowman", "t3": "Spotter", "t4": "Steppe Rider", "t5": "Marksman", "t6": "Marauder", "t7": "Ram", "t8": "Catapult", "t9": "Logades", "t10": "Settler"},
     5: {"t1": "Slave Militia", "t2": "Ash Warden", "t3": "Khopesh Warrior", "t4": "Sopdu Explorer", "t5": "Anhur Guard", "t6": "Resheph Chariot", "t7": "Ram", "t8": "Stone Catapult", "t9": "Nomarch", "t10": "Settler"},
+    # Tribe 7 fallback: reuse Huns naming so labels aren't raw codes
+    7: {"t1": "Mercenary", "t2": "Bowman", "t3": "Spotter", "t4": "Steppe Rider", "t5": "Marksman", "t6": "Marauder", "t7": "Ram", "t8": "Catapult", "t9": "Logades", "t10": "Settler"},
 }
 
 
@@ -85,4 +88,3 @@ def resolve_label_u(tribe_id: int | None, unit_code: str) -> str:
     name = resolve_unit_base_name(tribe_id, unit_code)
     ucode = unit_code if str(unit_code).startswith("u") else t_to_u(int(tribe_id or 4), unit_code)
     return f"{name} ({ucode})"
-

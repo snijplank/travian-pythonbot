@@ -11,13 +11,12 @@ from identity_handling.identity_helper import load_villages_from_identity
 def print_hero_status_summary(status):
     print("\n🦸 Hero Status Summary")
     print("=" * 30)
-    if not status.is_present:
-        print("❌ Hero is not present")
-        return
-    print(f"✅ Hero is present")
-    print(f"📊 Level {status.level} ({status.experience_percent:.1f}% to next level)")
+    # Always show level/health
+    if status.level is not None and status.experience_percent is not None:
+        print(f"📊 Level {status.level} ({status.experience_percent:.1f}% to next level)")
     if status.health is not None:
         print(f"❤️ Health: {status.health}%")
+
     if status.is_on_mission:
         print("\n🚀 On Mission")
         if status.mission_return_time:

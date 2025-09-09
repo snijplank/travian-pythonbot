@@ -150,6 +150,9 @@ Doel: de Hero Raider onafhankelijk laten plannen/uitvoeren, zodat de main cycle 
    - Extra debug logging + toggles; dump detail HTML bij mismatch
    - Verifieer relative links vs absolute; tab `s` parameter
    - Unit/golden tests met HTML fixtures (Bounty-row, loss parsing)
+   - Robuustheid: verwerk pendings in begrensde batches (geen lange stalls bij backlog)
+   - Guards: vroege exit als unread=0 én geen pendings; duidelijke statuslogs per branch
+   - Refactor: losser koppelen van indicator/pendings/HTML parser; fouttolerantie verhogen
 
 ➡️ Opvolgende prioriteiten (dorp & held)
 6. Resourceveld‑upgrades per dorp (profielen + budgetten)

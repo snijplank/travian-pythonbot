@@ -29,6 +29,34 @@ def try_send_hero_to_oasis(api, village, oasis, min_power=50, max_power=2000, he
     Returns:
         bool: True if hero was sent, False otherwise
     """
+    # Preflight: ensure hero is available in the current village and not on a mission
+    def _hero_available_here() -> bool:
+        try:
+            import re as _re
+            res = api.session.get(f"{api.server_url}/api/v1/hero/dataForHUD")
+            res.raise_for_status()
+            j = res.json() or {}
+            # hero must be alive and not on a mission
+            alive = (j.get("healthStatus") == "alive")
+            on_mission = ("heroHome" not in (j.get("statusInlineIcon", "") or ""))
+            if not alive or on_mission:
+                return False
+            # verify hero is in this village
+            url = j.get("url", "") or ""
+            m = _re.search(r"newdid=(\d+)", url)
+            current_vid = str(m.group(1)) if m else None
+            expected_vid = str(village.get("village_id") if isinstance(village, dict) else getattr(village, "village_id", ""))
+            return current_vid is not None and expected_vid and current_vid == expected_vid
+        except Exception:
+            return False
+
+    if not _hero_available_here():
+        try:
+            logging.info("[HeroOasisClear] ❌ Hero not available in this village (or on mission). Skipping send.")
+        except Exception:
+            pass
+        return False
+
     # Calculate distance
     distance = abs(village['x'] - oasis['x']) + abs(village['y'] - oasis['y'])
     

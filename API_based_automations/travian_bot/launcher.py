@@ -10,6 +10,8 @@ from core.travian_api import TravianAPI
 from core.database_helpers import load_latest_unoccupied_oases
 from oasis_raiding_from_scan_list_main import run_raid_planner
 from raid_list_main import run_one_farm_list_burst
+from features.raiding.empty_oasis_raider import run_empty_oasis_raids
+from features.farm_lists.farm_list_runner import run_farmlists_for_villages
 from features.raiding.reset_raid_plan import reset_saved_raid_plan
 from features.raiding.setup_interactive_plan import setup_interactive_raid_plan
 from identity_handling.identity_manager import handle_identity_management
@@ -71,6 +73,9 @@ def _setup_logging():
     fh.setLevel(level)
     fh.setFormatter(fmt)
     LOGGER.addHandler(fh)
+
+    # Avoid double-printing via root logger handlers
+    LOGGER.propagate = False
 
 # Ensure unbuffered prints for interactive runs
 try:
@@ -618,10 +623,52 @@ def main():
             feat_reports = bool(getattr(settings, 'PROCESS_REPORTS_IN_AUTOMATION', True))
             feat_adv = bool(getattr(settings, 'HERO_ADVENTURE_ENABLE', True))
             feat_tasks = bool(getattr(settings, 'PROGRESSIVE_TASKS_ENABLE', True))
+            # New independent raiders (robust toggle reader supports nested 'raiding' section)
+            def _cfg_bool(name: str, legacy: str | None = None, default: bool = True) -> bool:
+                v = getattr(settings, name, None)
+                if isinstance(v, bool):
+                    return v
+                try:
+                    ra = getattr(settings, 'raiding', None)
+                    # Support both dict and object-like containers
+                    if ra is not None:
+                        if isinstance(ra, dict):
+                            rv = ra.get(name)
+                        else:
+                            rv = getattr(ra, name, None)
+                        if isinstance(rv, bool):
+                            return rv
+                except Exception:
+                    pass
+                # Fallback: read directly from YAML for nested keys
+                try:
+                    from pathlib import Path as _P
+                    import yaml as _yaml
+                    cfg_path = _P(__file__).resolve().parent / 'config.yaml'
+                    if cfg_path.exists():
+                        data = _yaml.safe_load(cfg_path.read_text(encoding='utf-8')) or {}
+                        ra = (data.get('raiding') or {})
+                        yv = ra.get(name)
+                        if isinstance(yv, bool):
+                            return yv
+                except Exception:
+                    pass
+                if legacy is not None:
+                    lv = getattr(settings, legacy, None)
+                    if isinstance(lv, bool):
+                        return lv
+                return bool(default)
+
+            fl_enabled = _cfg_bool('FARM_LIST_RAIDER_ENABLE', legacy='FARM_LISTS_ENABLE', default=True)
+            empty_oasis_enabled = _cfg_bool('EMPTY_OASIS_RAIDER_ENABLE', legacy='ENABLE_EMPTY_OASIS_RAIDER', default=True)
+            hero_clear_enabled = _cfg_bool('HERO_OASIS_CLEAR_ENABLE', legacy='ENABLE_HERO_OASIS_CLEAR', default=True)
             print("\n⚙️  Feature Toggles:")
             print(f"- Reports processing: {'ENABLED' if feat_reports else 'DISABLED'}")
+            print(f"- Progressive tasks: {'ENABLED' if feat_tasks else 'DISABLED'}")
             print(f"- Hero adventures:   {'ENABLED' if feat_adv else 'DISABLED'}")
-            print(f"- Progressive tasks: {'ENABLED' if feat_tasks else 'DISABLED'}\n")
+            print(f"- FarmListRaider:    {'ENABLED' if fl_enabled else 'DISABLED'}")
+            print(f"- EmptyOasisRaider:  {'ENABLED' if empty_oasis_enabled else 'DISABLED'}")
+            print(f"- HeroOasisClear:    {'ENABLED' if hero_clear_enabled else 'DISABLED'}\n")
         except Exception:
             pass
         
@@ -629,28 +676,76 @@ def main():
         skip_farm_lists_first_run = bool(getattr(settings, "SKIP_FARM_LISTS_FIRST_RUN", False))
         # Reuse existing logged-in API and server_url from earlier login
 
-        # Start hero raiding thread (non-blocking, defensive)
+        # Start hero raiding thread (non-blocking, defensive) only if enabled
         try:
-            hero_thread = threading.Thread(
-                target=run_hero_raiding_thread,
-                args=(api,),
-                name="HeroRaiderThread",
-                daemon=True,
-            )
-            hero_thread.start()
-            _log_info(f"Hero raiding thread started (daemon, alive={hero_thread.is_alive()}).")
-            # Also start the adventure watcher
-            adv_thread = threading.Thread(
-                target=run_hero_adventure_thread,
-                args=(api,),
-                name="HeroAdventureThread",
-                daemon=True,
-            )
-            adv_thread.start()
-            _log_info(f"Hero adventure thread started (daemon, alive={adv_thread.is_alive()}).")
+            # Use the same robust reader for starting threads
+            def _cfg_bool(name: str, legacy: str | None = None, default: bool = True) -> bool:
+                v = getattr(settings, name, None)
+                if isinstance(v, bool):
+                    return v
+                try:
+                    ra = getattr(settings, 'raiding', None)
+                    if ra is not None:
+                        if isinstance(ra, dict):
+                            rv = ra.get(name)
+                        else:
+                            rv = getattr(ra, name, None)
+                        if isinstance(rv, bool):
+                            return rv
+                except Exception:
+                    pass
+                try:
+                    from pathlib import Path as _P
+                    import yaml as _yaml
+                    cfg_path = _P(__file__).resolve().parent / 'config.yaml'
+                    if cfg_path.exists():
+                        data = _yaml.safe_load(cfg_path.read_text(encoding='utf-8')) or {}
+                        ra = (data.get('raiding') or {})
+                        yv = ra.get(name)
+                        if isinstance(yv, bool):
+                            return yv
+                except Exception:
+                    pass
+                if legacy is not None:
+                    lv = getattr(settings, legacy, None)
+                    if isinstance(lv, bool):
+                        return lv
+                return bool(default)
+
+            hero_clear_enabled = _cfg_bool('HERO_OASIS_CLEAR_ENABLE', legacy='ENABLE_HERO_OASIS_CLEAR', default=True)
+            if hero_clear_enabled:
+                import requests as _requests
+                hero_session = _requests.Session()
+                try:
+                    hero_session.headers.update(getattr(api.session, 'headers', {}) or {})
+                    if hasattr(api.session, 'cookies'):
+                        hero_session.cookies.update(api.session.cookies.get_dict())
+                except Exception:
+                    pass
+                hero_api = TravianAPI(hero_session, api.server_url)
+
+                hero_thread = threading.Thread(
+                    target=run_hero_raiding_thread,
+                    args=(hero_api,),
+                    name="HeroOasisClearThread",
+                    daemon=True,
+                )
+                hero_thread.start()
+                _log_info(f"HeroOasisClear thread started (daemon, alive={hero_thread.is_alive()}).")
+            # Adventure watcher independent toggle
+            adv_enabled = bool(getattr(settings, 'HERO_ADVENTURE_ENABLE', True))
+            if adv_enabled:
+                adv_thread = threading.Thread(
+                    target=run_hero_adventure_thread,
+                    args=(api,),
+                    name="HeroAdventureThread",
+                    daemon=True,
+                )
+                adv_thread.start()
+                _log_info(f"Hero adventure thread started (daemon, alive={adv_thread.is_alive()}).")
         except Exception as e:
-            print(f"[Main] ⚠️ Could not start hero thread: {e}", flush=True)
-            _log_warn(f"Could not start hero thread: {e}")
+            print(f"[Main] ⚠️ Could not start hero/adventure thread: {e}", flush=True)
+            _log_warn(f"Could not start hero/adventure thread: {e}")
         
         # ReportChecker niet parallel starten: we verwerken pendings sequentieel per cycle
         # Start attack detector if enabled
@@ -706,15 +801,15 @@ def main():
                             avail = int(count_collectible_rewards(api))
                         except Exception:
                             avail = 0
-                        # If parser finds none, but the top bar shows the quest bubble, indicate 1+
+                        # Be conservative: do not claim 1+ on bubble; show indicator status alongside 0
                         try:
                             bubble = bool(api.has_task_reward_indicator())
                         except Exception:
                             bubble = False
-                        if avail <= 0 and bubble:
-                            parts.append("🎁 Task rewards: 1+")
-                        else:
+                        if avail > 0:
                             parts.append(f"🎁 Task rewards: {avail}")
+                        else:
+                            parts.append("🎁 Task rewards: 0" + (" (indicator)" if bubble else ""))
 
                     # Open hero adventures count
                     if bool(getattr(settings, 'HERO_ADVENTURE_ENABLE', True)):
@@ -772,12 +867,49 @@ def main():
                             pass
                 except Exception:
                     pass
-                print("[Main] Running raid planner...", flush=True)
-                if first_cycle and skip_farm_lists_first_run:
-                    # Skip farm lists only on the first run if requested
-                    run_raid_planner(api, server_url, reuse_saved=True, multi_village=True, run_farm_lists=False)
-                else:
-                    run_raid_planner(api, server_url, reuse_saved=True, multi_village=True, run_farm_lists=True)
+                # Independent raiders
+                def _cfg_bool(name: str, legacy: str | None = None, default: bool = True) -> bool:
+                    v = getattr(settings, name, None)
+                    if isinstance(v, bool):
+                        return v
+                    try:
+                        ra = getattr(settings, 'raiding', None)
+                        if ra is not None:
+                            if isinstance(ra, dict):
+                                rv = ra.get(name)
+                            else:
+                                rv = getattr(ra, name, None)
+                            if isinstance(rv, bool):
+                                return rv
+                    except Exception:
+                        pass
+                    try:
+                        from pathlib import Path as _P
+                        import yaml as _yaml
+                        cfg_path = _P(__file__).resolve().parent / 'config.yaml'
+                        if cfg_path.exists():
+                            data = _yaml.safe_load(cfg_path.read_text(encoding='utf-8')) or {}
+                            ra = (data.get('raiding') or {})
+                            yv = ra.get(name)
+                            if isinstance(yv, bool):
+                                return yv
+                    except Exception:
+                        pass
+                    if legacy is not None:
+                        lv = getattr(settings, legacy, None)
+                        if isinstance(lv, bool):
+                            return lv
+                    return bool(default)
+
+                fl_enabled = _cfg_bool('FARM_LIST_RAIDER_ENABLE', legacy='FARM_LISTS_ENABLE', default=True)
+                empty_oasis_enabled = _cfg_bool('EMPTY_OASIS_RAIDER_ENABLE', legacy='ENABLE_EMPTY_OASIS_RAIDER', default=True)
+
+                if fl_enabled:
+                    # first-cycle skip honored if configured
+                    if not (first_cycle and skip_farm_lists_first_run):
+                        run_farmlists_for_villages(api, server_url, multi_village=True)
+                if empty_oasis_enabled:
+                    run_empty_oasis_raids(api, server_url, multi_village=True)
                 first_cycle = False
 
                 # Hero summary + record to metrics
@@ -825,17 +957,22 @@ def main():
                             unread_now = 0
                         import random as _rnd, time as _t
                         _t.sleep(_rnd.uniform(0.3, 1.0))
-                        processed = process_ready_pendings_once(api)
-                        _log_info(f"ReportChecker pass processed {processed} pending(s) this cycle.")
-                        if processed > 0:
-                            status_txt = f"processed {processed}"
+                        # Only invoke the checker when there's actually something to do
+                        if pendings_cnt <= 0 and unread_now <= 0:
+                            _log_info("ReportChecker pass skipped (no pendings and no unread).")
+                            status_txt = "skipped (no unread)"
                         else:
-                            if pendings_cnt <= 0:
-                                status_txt = "no pendings"
-                            elif unread_now <= 0:
-                                status_txt = "skipped (no unread)"
+                            processed = process_ready_pendings_once(api, verbose=True)
+                            _log_info(f"ReportChecker pass processed {processed} pending(s) this cycle.")
+                            if processed > 0:
+                                status_txt = f"processed {processed}"
                             else:
-                                status_txt = "processed 0"
+                                if pendings_cnt <= 0:
+                                    status_txt = "no pendings"
+                                elif unread_now <= 0:
+                                    status_txt = "skipped (no unread)"
+                                else:
+                                    status_txt = "processed 0"
                     else:
                         status_txt = "disabled"
                         _log_info("ReportChecker pass skipped (disabled in config).")
@@ -923,9 +1060,95 @@ def main():
                         print(f"[Humanizer] ☕ Taking a short break (+{extra} min)")
                 except Exception:
                     pass
-                print(f"[Main] Cycle complete. Waiting {total_wait_minutes} minutes...", flush=True)
-                _log_info(f"Cycle complete. Waiting {total_wait_minutes} minutes.")
-                time.sleep(max(0, total_wait_minutes) * 60)
+
+                # Event-driven wait: if next oasis due is earlier than base cycle wait, prefer waking up earlier
+                base_wait_sec = max(0, int(total_wait_minutes) * 60)
+                event_wait_sec = None
+                try:
+                    from pathlib import Path as _P
+                    import json as _json
+                    p = _P("database/runtime_next_oasis_due.json")
+                    if p.exists():
+                        j = _json.loads(p.read_text(encoding='utf-8')) or {}
+                        next_epoch = int(j.get('next_due_epoch', 0))
+                        if next_epoch > 0:
+                            event_wait_sec = max(0, next_epoch - int(time.time()))
+                except Exception:
+                    event_wait_sec = None
+
+                use_event = bool(getattr(settings, 'OASIS_EVENT_DRIVEN_WAIT_ENABLE', True))
+                wait_total = base_wait_sec
+                if use_event and isinstance(event_wait_sec, int) and event_wait_sec > 0:
+                    # Wake up earlier if the next oasis becomes due sooner than the base cycle
+                    wait_total = min(base_wait_sec, max(15, event_wait_sec))
+
+                # Announce wait with optional event-driven hint
+                if use_event and isinstance(event_wait_sec, int) and event_wait_sec > 0:
+                    mm, ss = divmod(max(0, event_wait_sec), 60)
+                    print(f"[Main] Cycle complete. Waiting {max(0, wait_total//60)} minute(s)... (event-driven: next oasis in {mm:02d}:{ss:02d})", flush=True)
+                else:
+                    print(f"[Main] Cycle complete. Waiting {max(0, wait_total//60)} minute(s)...", flush=True)
+                _log_info(f"Cycle complete. Waiting {max(0, wait_total//60)} minute(s).")
+
+                # Progress bar countdown for next cycle (and show next oasis ETA when available)
+                start_ts = time.time()
+                def _read_next_oasis_eta() -> int | None:
+                    try:
+                        import json as _json
+                        from pathlib import Path as _P
+                        p = _P("database/runtime_next_oasis_due.json")
+                        if not p.exists():
+                            return None
+                        j = _json.loads(p.read_text(encoding='utf-8'))
+                        eta = int(j.get("next_due_epoch", 0) - time.time())
+                        return eta if eta > 0 else None
+                    except Exception:
+                        return None
+
+                def _render_bar(prefix: str, remain: int, total: int) -> str:
+                    total = max(total, 1)
+                    remain = max(0, remain)
+                    done = total - remain
+                    width = 24
+                    filled = int(width * done / total)
+                    bar = "#" * filled + "." * (width - filled)
+                    mm, ss = divmod(remain, 60)
+                    return f"{prefix} [{bar}] {mm:02d}:{ss:02d}"
+
+                # Update once per second; if stdout is not a TTY, fall back to timestamped lines
+                last_line = None
+                is_tty = False
+                try:
+                    is_tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
+                except Exception:
+                    is_tty = False
+                newline_fallback_every = 10  # seconds
+                last_newline = 0
+                while True:
+                    elapsed = int(time.time() - start_ts)
+                    remain = max(0, wait_total - elapsed)
+                    if remain <= 0:
+                        break
+                    oasis_eta = _read_next_oasis_eta()
+                    if oasis_eta is not None:
+                        # Show oasis ETA alongside cycle countdown (minimum displayed)
+                        line = _render_bar("Next cycle", remain, wait_total)
+                        line2 = _render_bar("Next oasis", oasis_eta, max(oasis_eta, 1))
+                        out = line + " | " + line2
+                    else:
+                        out = _render_bar("Next cycle", remain, wait_total)
+                    if is_tty:
+                        if out != last_line:
+                            print("\r" + out, end="", flush=True)
+                            last_line = out
+                    else:
+                        # Non‑TTY: print a timestamped line every few seconds so it shows up in logs
+                        if (elapsed - last_newline) >= newline_fallback_every:
+                            last_newline = elapsed
+                            _log_info(out)
+                    time.sleep(1)
+                if is_tty and last_line:
+                    print()  # newline after progress bar
 
             except Exception as e:
                 print(f"[Main] ⚠️ Error during cycle: {e}")

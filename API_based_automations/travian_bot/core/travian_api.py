@@ -140,44 +140,91 @@ class TravianAPI:
                 (Path("logs")/"tasks_page.html").write_text(html, encoding="utf-8")
             except Exception:
                 pass
-
-            # 1) Look for inline JSON-like objects that include questType/scope/targetLevel/buildingId
-            #    We keep this lenient to survive minor markup changes.
-            candidates = re.findall(r"\{[^{}]*?\"questType\"\s*:\s*\"[^\"]+\"[^{}]*?\}", html)
-            for c in candidates:
+            # 1) Prefer parsing the React bootstrap JSON (robust across skins)
+            #    We extract the first argument object from window.Travian.React.Tasks.render({ ... })
+            if True:
                 try:
-                    # Normalize JS-style to JSON (remove trailing commas)
-                    clean = re.sub(r",\s*([}\]])", r"\1", c)
-                    j = _json.loads(clean)
+                    marker = "window.Travian.React.Tasks.render"
+                    idx = html.find(marker)
+                    if idx != -1:
+                        # Find opening brace of first argument
+                        s = html.find("(", idx)
+                        s = html.find("{", s)
+                        # Walk and balance braces
+                        depth = 0
+                        e = s
+                        while e < len(html):
+                            ch = html[e]
+                            if ch == '{':
+                                depth += 1
+                            elif ch == '}':
+                                depth -= 1
+                                if depth == 0:
+                                    e += 1
+                                    break
+                            e += 1
+                        blob = html[s:e]
+                        data = _json.loads(blob)
+                        tasksData = data.get("tasksData") or {}
+                        # Merge generalTasks and activeVillageTasks
+                        def _iter_tasks(td):
+                            for k in ("generalTasks", "activeVillageTasks"):
+                                arr = td.get(k) or []
+                                for t in arr:
+                                    yield t
+                        for t in _iter_tasks(tasksData):
+                            qtype = t.get("type")
+                            scope = t.get("scope")
+                            meta = t.get("metadata") or {}
+                            bld = meta.get("buildingId")
+                            for lvl in (t.get("levels") or []):
+                                if lvl.get("readyToBeCollected") and not lvl.get("wasCollected"):
+                                    item = {
+                                        "questType": qtype,
+                                        "scope": scope,
+                                        "targetLevel": lvl.get("levelValue"),
+                                    }
+                                    qid = lvl.get("questId")
+                                    if qid:
+                                        item["questId"] = qid
+                                    if bld is not None:
+                                        item["buildingId"] = bld
+                                    payloads.append(item)
                 except Exception:
-                    # Fallback: manual field scrape
-                    def _grab(name, num=False):
-                        m = re.search(rf'\"{name}\"\s*:\s*(\"([^\"]+)\"|(\d+))', c)
-                        if not m:
-                            return None
-                        if num:
-                            try:
-                                return int(m.group(3) or m.group(2))
-                            except Exception:
-                                return None
-                        return m.group(2)
-                    j = {
-                        "questType": _grab("questType"),
-                        "scope": _grab("scope"),
-                        "targetLevel": _grab("targetLevel", num=True),
-                        "heroLevel": _grab("heroLevel", num=True),
-                        "buildingId": _grab("buildingId", num=True),
-                    }
-                # Validate minimal keys
-                if not j or not j.get("questType") or not j.get("scope"):
-                    continue
-                # Only include items that likely represent a ready-to-collect state
-                # Heuristic: presence of targetLevel and (optionally) buildingId
-                if j.get("targetLevel") is None and j.get("buildingId") is None:
-                    continue
-                payloads.append({k: v for k, v in j.items() if v is not None})
+                    pass
 
-            # 2) If nothing found, try attribute-based hints on buttons/links
+            # 2) If React JSON parse failed or found nothing, try inline JSON-like fragments
+            if not payloads:
+                candidates = re.findall(r"\{[^{}]*?\"questType\"\s*:\s*\"[^\"]+\"[^{}]*?\}", html)
+                for c in candidates:
+                    try:
+                        clean = re.sub(r",\s*([}\]])", r"\1", c)
+                        j = _json.loads(clean)
+                    except Exception:
+                        def _grab(name, num=False):
+                            m = re.search(rf'\"{name}\"\s*:\s*(\"([^\"]+)\"|(\d+))', c)
+                            if not m:
+                                return None
+                            if num:
+                                try:
+                                    return int(m.group(3) or m.group(2))
+                                except Exception:
+                                    return None
+                            return m.group(2)
+                        j = {
+                            "questType": _grab("questType"),
+                            "scope": _grab("scope"),
+                            "targetLevel": _grab("targetLevel", num=True),
+                            "heroLevel": _grab("heroLevel", num=True),
+                            "buildingId": _grab("buildingId", num=True),
+                        }
+                    if not j or not j.get("questType") or not j.get("scope"):
+                        continue
+                    if j.get("targetLevel") is None and j.get("buildingId") is None:
+                        continue
+                    payloads.append({k: v for k, v in j.items() if v is not None})
+
+            # 3) Finally, look for attribute-based hints on buttons/links
             if not payloads:
                 try:
                     from bs4 import BeautifulSoup
@@ -887,6 +934,41 @@ class TravianAPI:
         res.raise_for_status()
         return res.json()["html"]
 
+    def get_hero_return_eta(self) -> int | None:
+        """Best-effort: parse rally point movements page to find hero mission remaining seconds.
+
+        Returns the remaining seconds (int), or None if not found.
+        Also useful to approximate return epoch: time.time() + remaining.
+        """
+        try:
+            import re as _re, time as _t
+            res = self.session.get(f"{self.server_url}/build.php?gid=16&tt=1")
+            res.raise_for_status()
+            html = getattr(res, "text", "") or ""
+        except Exception:
+            return None
+
+        # Look for a movement block that contains the hero unit icon, then capture a nearby timer value
+        try:
+            # Find segments that include the hero icon
+            segments = html.split('\n')
+            for i, line in enumerate(segments):
+                if 'uhero' in line or 'unit uhero' in line:
+                    # Search forward a small window for a timer with value attribute
+                    window = '\n'.join(segments[i:i+30])
+                    m = _re.search(r'class=\"timer\"[^>]*value=\"(\d+)\"', window)
+                    if m:
+                        val = int(m.group(1))
+                        return val if val > 0 else None
+            # Fallback: any timer inside an outgoing own troops block that mentions hero
+            m2 = _re.search(r'(?:uhero)[\s\S]{0,400}?class=\"timer\"[^>]*value=\"(\d+)\"', html)
+            if m2:
+                val = int(m2.group(1))
+                return val if val > 0 else None
+        except Exception:
+            return None
+        return None
+
 
 
 
@@ -1029,7 +1111,7 @@ class TravianAPI:
         print("="*40)
 
     def get_troops_in_village(self):
-        """Fetch troop counts in the current village."""
+        """Fetch troop counts in the current village (no printing)."""
         import re
 
         url = f"{self.server_url}/dorf1.php"
@@ -1039,76 +1121,27 @@ class TravianAPI:
         soup = BeautifulSoup(response.text, "html.parser")
         troops_table = soup.find("table", {"id": "troops"})
         if not troops_table:
-            print("⚠️ Troops table not found.")
             return {}
 
-        # Resolve tribeId of the current village for readable unit names
-        tribe_id = None
-        try:
-            pinfo = self.get_player_info() or {}
-            current_vid = (pinfo or {}).get("currentVillageId")
-            villages = (pinfo or {}).get("villages", []) or []
-            # Prefer current village match with tolerant id comparison
-            for v in villages:
-                try:
-                    if str(v.get("id")) == str(current_vid):
-                        tv = v.get("tribeId")
-                        if tv is not None:
-                            tribe_id = int(tv)
-                        break
-                except Exception:
-                    continue
-            # Fallback: take first available tribeId
-            if tribe_id is None:
-                for v in villages:
-                    tv = v.get("tribeId")
-                    if tv is not None:
-                        tribe_id = int(tv)
-                        break
-        except Exception:
-            tribe_id = None
-
-        def _resolve_unit_name(tribe_id_val: int | None, unit_code: str) -> str:
-            return resolve_unit_base_name(tribe_id_val, unit_code)
-
-        troops = {}
-        print("\n⚔️ Current troops in village:")
-        print("="*30)
+        troops: dict[str, int] = {}
         for row in troops_table.find_all("tr"):
             img = row.find("img")
             num = row.find("td", class_="num")
-            if img and num:
-                unit_classes = img.get("class", [])
-                for c in unit_classes:
-                    if c in ("unit", "uhero"):
-                        # Ignore generic class and hero; hero is not sent via normal troop slots
-                        continue
-                    m = re.fullmatch(r"u(\d{1,2})", c)
-                    if m:
-                        code_num = int(m.group(1))
-                        try:
-                            count = int(num.text.strip())
-                            troops[f"u{code_num}"] = count
-                            # Pretty name with tribe fallback based on code range
-                            eff_tribe = tribe_id
-                            if eff_tribe is None:
-                                if 1 <= code_num <= 10:
-                                    eff_tribe = 1
-                                elif 11 <= code_num <= 20:
-                                    eff_tribe = 2
-                                elif 21 <= code_num <= 30:
-                                    eff_tribe = 3
-                                elif 41 <= code_num <= 50:
-                                    eff_tribe = 5
-                                elif 61 <= code_num <= 70:
-                                    eff_tribe = 4
-                            label = resolve_label_u(eff_tribe, f"u{code_num}") if eff_tribe else f"u{code_num}"
-                            print(f"   🛡️ {label}: {count:,} units")
-                        except ValueError:
-                            continue
-                    else:
-                        print(f"🔍 Unrecognized unit class: {c}")
-        print("="*30)
+            if not (img and num):
+                continue
+            unit_classes = img.get("class", [])
+            for c in unit_classes:
+                if c in ("unit", "uhero"):
+                    continue
+                m = re.fullmatch(r"u(\d{1,2})", c)
+                if not m:
+                    continue
+                try:
+                    code_num = int(m.group(1))
+                    count = int(num.text.strip())
+                    troops[f"u{code_num}"] = count
+                except Exception:
+                    continue
         return troops
 
     def _make_graphql_request(self, query: str, variables: dict = None) -> dict:
@@ -1296,13 +1329,16 @@ class TravianAPI:
     def has_task_reward_indicator(self) -> bool:
         """Detects the top-bar 'new quest' speech bubble that indicates claimable tasks.
 
-        Looks for elements like <div class="bigSpeechBubble newQuestSpeechBubble"> on dorf1.
+        Looks specifically for the top-bar speech bubble element on dorf1:
+        e.g. <div class="bigSpeechBubble newQuestSpeechBubble"> ...
+        Do not rely on static elements like 'progressiveTasksTitle' which is always present.
         """
         try:
             res = self.session.get(f"{self.server_url}/dorf1.php")
             res.raise_for_status()
             html = getattr(res, "text", "") or ""
-            return ("newQuestSpeechBubble" in html) or ("progressiveTasksTitle" in html)
+            # Strict: only treat the explicit speech-bubble as an indicator
+            return ("newQuestSpeechBubble" in html) or ("bigSpeechBubble newQuestSpeechBubble" in html)
         except Exception:
             return False
 

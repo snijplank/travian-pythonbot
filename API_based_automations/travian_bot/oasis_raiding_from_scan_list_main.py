@@ -71,13 +71,24 @@ def resolve_unit_name(tribe_id: int, unit_code: str) -> str:
         return f"{UNIT_NAME_MAP[tribe_id].get(tcode, tcode)} ({tcode})"
     return f"Unknown Unit ({unit_code})"
 
-class NoTimestampFormatter(logging.Formatter):
-    def format(self, record):
-        return f"[{record.levelname}] {record.getMessage()}"
+"""Console logging setup with timestamps for CLI output.
 
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(NoTimestampFormatter())
-logging.basicConfig(level=logging.INFO, handlers=[console_handler])
+If the root logger already has handlers (e.g., configured by launcher.py),
+we do not override it. Otherwise, we attach a StreamHandler that includes
+timestamp, level, logger name, and message for consistent, readable output.
+"""
+_root = logging.getLogger()
+if not _root.handlers:
+    _console_handler = logging.StreamHandler()
+    _console_handler.setLevel(logging.INFO)
+    _console_handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    _root.setLevel(logging.INFO)
+    _root.addHandler(_console_handler)
 
 def save_raid_plan(raid_plan, server_url, village_index):
     """Save the raid plan to a JSON file."""
@@ -222,17 +233,34 @@ def run_raid_planner(
             logging.info("No unoccupied oases found for this village. Skipping oasis raids.")
             continue
 
-        # --- HERO LOGIC START ---
+        # --- HERO LOGIC START (non-blocking by default) ---
         hero_available = troops_info.get("uhero", 0) >= 1
-        hero_sent = False
-
         if enable_hero_raiding and hero_available:
-            for coord_key, oasis_data in oases.items():
-                x_str, y_str = coord_key.split("_")
-                oasis = {"x": int(x_str), "y": int(y_str)}
-                if try_send_hero_to_oasis(api, selected_village, oasis):
-                    hero_sent = True
-                    break
+            # Inline hero sending may be expensive. Keep it strictly bounded or disabled.
+            try:
+                from config.config import settings as _cfg
+                max_tries = int(getattr(_cfg, 'HERO_INLINE_MAX_TRIES', 0))
+                time_budget = float(getattr(_cfg, 'HERO_INLINE_TIME_BUDGET_SEC', 0.0))
+            except Exception:
+                max_tries, time_budget = 0, 0.0
+
+            if max_tries > 0 and time_budget > 0:
+                import time as _t
+                start = _t.time()
+                tried = 0
+                for coord_key, oasis_data in oases.items():
+                    if tried >= max_tries or (_t.time() - start) >= time_budget:
+                        break
+                    x_str, y_str = coord_key.split("_")
+                    oasis = {"x": int(x_str), "y": int(y_str)}
+                    try:
+                        if try_send_hero_to_oasis(api, selected_village, oasis):
+                            break
+                    except Exception:
+                        pass
+                    tried += 1
+            else:
+                logging.info("[Hero] Inline hero send disabled; background thread will handle hero raiding.")
         # --- HERO LOGIC END ---
 
         run_raid_batch(api, raid_plan, faction, village_id, oases)

@@ -235,7 +235,7 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
         _cfg = _CfgFallback()
     if not bool(getattr(_cfg, 'LEARNING_ENABLE', True)):
         if verbose:
-            print("[RC] Learning disabled; skipping.")
+            LOG.info("[RC] Learning disabled; skipping.")
         return 0
     ls = LearningStore()
     pendings = _load_pending()
@@ -244,22 +244,36 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
 
     now_ts = time.time()
     keep: list[dict] = []
+    # Limit the number of items we process in one pass to avoid long stalls
+    try:
+        from config.config import settings as _cfg
+        limit = int(getattr(_cfg, 'REPORT_MAX_ITEMS_PER_PASS', 0) or 0)
+    except Exception:
+        limit = 0
+    total_p = len(pendings)
+    if limit > 0 and total_p > limit:
+        if verbose:
+            LOG.info(f"[RC] Limiting processing to first {limit}/{total_p} pending item(s) this pass…")
+        # Keep the tail for the next pass
+        for tail_item in pendings[limit:]:
+            keep.append(tail_item)
+        pendings = pendings[:limit]
     # Optional early-exit als er géén pendings zijn en ook geen ongelezen reports
     try:
         from config.config import settings as _cfg
         if bool(getattr(_cfg, 'REPORT_USE_INDICATOR', True)):
             unread = int(api.get_unread_report_count())
             if verbose:
-                print(f"[RC] Unread reports indicator: {unread}")
+                LOG.info(f"[RC] Unread reports indicator: {unread}")
             # Skip only when there is nothing to process and no unread reports
             if unread <= 0 and not pendings:
                 if verbose:
-                    print("[RC] No pendings and no unread; skipping scan this pass.")
+                    LOG.info("[RC] No pendings and no unread; skipping scan this pass.")
                 return 0
     except Exception:
         pass
     if verbose:
-        print(f"[RC] Starting report processing: {len(pendings)} pending item(s)…")
+        LOG.info(f"[RC] Starting report processing: {len(pendings)} pending item(s)…")
     for item in pendings:
         # Generic key per target (coords like "(x,y)")
         key = item.get("target") or item.get("oasis")            # "(x,y)"
@@ -267,6 +281,8 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
         base = int(item.get("recommended", item.get("sent", 0)) or 0)
         sent = int(item.get("sent", 0) or 0)
         ts_epoch = item.get("_epoch")
+        if verbose:
+            LOG.info(f"[RC] Pending {key} unit={code} base={base} sent={sent} epoch={ts_epoch}")
         if ts_epoch is None:
             try:
                 item["_epoch"] = now_ts
@@ -278,7 +294,7 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
         min_wait = float(getattr(settings, "REPORT_MIN_WAIT_SEC", 60.0))
         if age < min_wait:
             if verbose:
-                print(f"[RC] {key}: too fresh (age={age:.0f}s < {min_wait:.0f}s), keep")
+                LOG.info(f"[RC] {key}: too fresh (age={age:.0f}s < {min_wait:.0f}s), keep")
             keep.append(item)
             continue
 
@@ -287,11 +303,13 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
         except Exception:
             x = y = None
 
+        if verbose:
+            LOG.info(f"[RC] {key}: querying latest report by coords x={x}, y={y}")
         report = api.find_latest_report_by_coords(x, y)
         if not report:
             keep.append(item)
             if verbose:
-                print(f"[RC] {key}: no report found yet, keep (age={age:.0f}s)")
+                LOG.info(f"[RC] {key}: no report found yet, keep (age={age:.0f}s)")
             continue
 
         html = report.get("html", "")
@@ -313,7 +331,7 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
                 loot_txt = ""
             line = f"[Report] {where}: {result.upper()}{loss_txt}{loot_txt}"
             if verbose:
-                print(line)
+                LOG.info(line)
             else:
                 LOG.info(line)
         except Exception:
@@ -331,7 +349,7 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
             )
             add_learning_change(key, old=current, new=m, direction="up", loss_pct=1.0)
             if verbose:
-                print(f"[RC] {key}: LOST → mul {current:.2f} → {m:.2f}")
+                LOG.info(f"[RC] {key}: LOST → mul {current:.2f} → {m:.2f}")
         elif loss_pct is not None:
             low = float(getattr(settings, "LEARNING_LOSS_THRESHOLD_LOW", 0.20))
             high = float(getattr(settings, "LEARNING_LOSS_THRESHOLD_HIGH", 0.50))
@@ -345,7 +363,7 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
                 )
                 add_learning_change(key, old=current, new=m, direction="down", loss_pct=loss_pct)
                 if verbose:
-                    print(f"[RC] {key}: WON ({loss_pct:.0%} losses) → mul {current:.2f} → {m:.2f}")
+                    LOG.info(f"[RC] {key}: WON ({loss_pct:.0%} losses) → mul {current:.2f} → {m:.2f}")
             elif loss_pct > high:
                 m = ls.nudge_multiplier(
                     key,
@@ -356,18 +374,18 @@ def process_ready_pendings_once(api, verbose: bool = False) -> int:
                 )
                 add_learning_change(key, old=current, new=m, direction="up", loss_pct=loss_pct)
                 if verbose:
-                    print(f"[RC] {key}: WON ({loss_pct:.0%} losses) → mul {current:.2f} → {m:.2f}")
+                    LOG.info(f"[RC] {key}: WON ({loss_pct:.0%} losses) → mul {current:.2f} → {m:.2f}")
             else:
                 if verbose:
-                    print(f"[RC] {key}: WON (loss unknown) → mul stays {current:.2f}")
+                    LOG.info(f"[RC] {key}: WON (loss unknown) → mul stays {current:.2f}")
         else:
             if verbose:
-                print(f"[RC] {key}: WON (loss unknown) → mul stays {current:.2f}")
+                LOG.info(f"[RC] {key}: WON (loss unknown) → mul stays {current:.2f}")
         processed += 1
         changed = True
 
     if changed:
         _save_pending(keep)
     if verbose:
-        print(f"[RC] Done. Processed {processed} pending(s). Remaining: {len(keep)}")
+        LOG.info(f"[RC] Done. Processed {processed} pending(s). Remaining: {len(keep)}")
     return processed

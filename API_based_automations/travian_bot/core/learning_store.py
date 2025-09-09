@@ -14,6 +14,34 @@ class LearningStore:
         self._migrated_from_legacy = False
         self._load()
 
+    @staticmethod
+    def _normalize_key(key: str | None) -> str | None:
+        """Normalize oasis target keys to canonical form '(x,y)' without spaces.
+
+        Accepts variants like '(x, y)' or strings with extra whitespace and returns '(x,y)'.
+        Returns None if the key can't be parsed.
+        """
+        try:
+            if key is None:
+                return None
+            s = str(key).strip()
+            # Fast path: already canonical
+            if s.startswith("(") and "," in s and " " not in s:
+                return s
+            import re as _re
+            m = _re.search(r"\(\s*([-+]?\d{1,3})\s*,\s*([-+]?\d{1,3})\s*\)", s)
+            if not m:
+                # try without parentheses
+                m2 = _re.search(r"([-+]?\d{1,3})\s*,\s*([-+]?\d{1,3})", s)
+                if not m2:
+                    return None
+                x = int(m2.group(1)); y = int(m2.group(2))
+                return f"({x},{y})"
+            x = int(m.group(1)); y = int(m.group(2))
+            return f"({x},{y})"
+        except Exception:
+            return None
+
     def _load(self) -> None:
         try:
             if self.path.exists():
@@ -40,11 +68,13 @@ class LearningStore:
             pass
 
     def get_multiplier(self, key: str) -> float:
-        return float(self.data.get(key, {}).get("multiplier", 1.0))
+        k = self._normalize_key(key) or key
+        return float(self.data.get(k, {}).get("multiplier", 1.0))
 
     def record_attempt(self, key: str, unit: str, recommended: int, sent: int, result: str, loss_pct: Optional[float] = None, haul: Optional[dict] = None) -> None:
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        s = self.data.setdefault(key, {"multiplier": 1.0, "attempts": 0, "successes": 0, "failures": 0})
+        k = self._normalize_key(key) or key
+        s = self.data.setdefault(k, {"multiplier": 1.0, "attempts": 0, "successes": 0, "failures": 0})
         s["attempts"] = int(s.get("attempts", 0)) + 1
         if result in ("won", "accepted"):
             s["successes"] = int(s.get("successes", 0)) + 1
@@ -99,7 +129,8 @@ class LearningStore:
         self._save()
 
     def nudge_multiplier(self, key: str, direction: str, step: float = 0.1, min_mul: float = 0.8, max_mul: float = 2.5) -> float:
-        s = self.data.setdefault(key, {"multiplier": 1.0})
+        k = self._normalize_key(key) or key
+        s = self.data.setdefault(k, {"multiplier": 1.0})
         m = float(s.get("multiplier", 1.0))
         if direction == "up":
             m = min(max_mul, m * (1.0 + step))
@@ -115,7 +146,8 @@ class LearningStore:
         Includes attempts, successes, failures, last_result/ts/loss_pct,
         average loss_pct over recent history, multiplier and total loot aggregate.
         """
-        s = self.data.get(key, {}) or {}
+        k = self._normalize_key(key) or key
+        s = self.data.get(k, {}) or {}
         out = {
             "multiplier": float(s.get("multiplier", 1.0)),
             "attempts": int(s.get("attempts", 0)),
@@ -142,9 +174,10 @@ class LearningStore:
     # --- Scheduling helpers (optional) ---
     def set_last_sent(self, key: str, ts: Optional[float] = None) -> None:
         try:
+            k = self._normalize_key(key) or key
             if ts is None:
                 ts = time.time()
-            s = self.data.setdefault(key, {"multiplier": 1.0})
+            s = self.data.setdefault(k, {"multiplier": 1.0})
             s["last_sent_ts"] = float(ts)
             self._save()
         except Exception:
@@ -152,7 +185,8 @@ class LearningStore:
 
     def get_last_sent(self, key: str) -> Optional[float]:
         try:
-            v = self.data.get(key, {}).get("last_sent_ts")
+            k = self._normalize_key(key) or key
+            v = self.data.get(k, {}).get("last_sent_ts")
             return float(v) if v is not None else None
         except Exception:
             return None

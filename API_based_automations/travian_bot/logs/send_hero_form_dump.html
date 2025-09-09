@@ -34,7 +34,7 @@
     Travian.Game.timeFormat = 0;
 </script>
 <script type="application/javascript">
-    Travian.Game.Preferences.initialize({"adSalesVideoInfoScreen":"disabled","adSalesVideoSuccessDialogDisabled":"1","entriesPerPage":"10","flagAttributesBoxOpen":"1","hideMarkAsReadDialog":"true","lastUsedPaymentMethod":"ADYEN_SCA_IDEAL","marketplaceOffersPerPage":"10","shopCountry":"NLD","troopMovementsPerPage":"10"});
+    Travian.Game.Preferences.initialize({"adSalesVideoInfoScreen":"disabled","adSalesVideoSuccessDialogDisabled":"1","entriesPerPage":"99","flagAttributesBoxOpen":"1","hideMarkAsReadDialog":"true","lastUsedPaymentMethod":"ADYEN_SCA_IDEAL","marketplaceOffersPerPage":"10","shopCountry":"NLD","troopMovementsPerPage":"99"});
     Travian.Game.PaymentWizardEventListener.defaultOptions = {"shopUIVersion":4,"cssClass":"paymentShopV4","data":{"activeTab":"buyGold"}};
 </script>
 	</head>
@@ -59,8 +59,8 @@
 
 			<a class="map" href="/karte.php" accesskey="3" title="Map||"></a>
 			<a class="statistics" href="/statistics" accesskey="4" title="Statistics||"></a>
-			<a class="reports" href="/report" accesskey="5" title="Reports||New reports: 2">
-									<div class="indicator">2</div>
+			<a class="reports" href="/report" accesskey="5" title="Reports||New reports: 3">
+									<div class="indicator">3</div>
 							</a>
 			<a class="messages" href="/messages" accesskey="6" title="Messages||New messages: 0">
 							</a>
@@ -98,7 +98,7 @@
     <path fill="#a87134" d="M25.05 4c1.48 0 1.48 2.26 0 2.26S23.57 4 25.05 4ZM21.7 6.56c1.48-.2 1.08-2.46-.39-2.16-1.38.2-.98 2.46.39 2.16Zm-3.14.78c1.38-.49.59-2.66-.79-2.07-1.28.49-.49 2.66.79 2.07Zm-2.95 1.38c1.28-.69.1-2.66-1.08-1.97-1.28.79-.1 2.75 1.08 1.97Zm-2.66 1.87c1.08-.89-.3-2.66-1.48-1.67-1.08.89.39 2.66 1.48 1.67Zm-2.26 2.36c.98-1.08-.79-2.56-1.67-1.48-.98 1.08.69 2.56 1.67 1.48Zm-1.97 2.66c.79-1.28-1.18-2.36-1.97-1.08-.69 1.18 1.28 2.36 1.97 1.08Zm-1.38 2.95c.59-1.38-1.57-2.07-2.07-.79-.49 1.38 1.67 2.16 2.07.79Zm-.78 3.14c.3-1.38-1.97-1.77-2.16-.39-.3 1.48 1.87 1.87 2.16.39Zm-.3 3.25c0-1.48-2.26-1.48-2.26 0s2.26 1.48 2.26 0Zm.3 3.35c-.2-1.48-2.46-1.08-2.16.39.2 1.38 2.36.98 2.16-.39Zm.78 3.14c-.49-1.38-2.66-.59-2.07.79.49 1.28 2.66.49 2.07-.79Zm1.38 2.95c-.69-1.28-2.66-.1-1.97 1.08.79 1.28 2.75.1 1.97-1.08Zm1.87 2.66c-.89-1.08-2.66.39-1.67 1.48.89 1.08 2.66-.39 1.67-1.48Zm2.36 2.36c-1.08-.98-2.56.79-1.48 1.67 1.08.98 2.56-.79 1.48-1.67Zm2.66 1.87c-1.28-.79-2.36 1.18-1.08 1.97 1.18.69 2.36-1.28 1.08-1.97Zm2.95 1.38c-1.38-.49-2.16 1.67-.79 2.07 1.38.49 2.16-1.57.79-2.07Zm3.14.78c-1.38-.3-1.77 1.97-.39 2.16 1.48.39 1.87-1.87.39-2.16Zm3.25.3c-1.48 0-1.48 2.26 0 2.26s1.48-2.26 0-2.26Zm3.25-.3c-1.48.2-1.08 2.46.39 2.16 1.48-.2 1.08-2.36-.39-2.16Zm3.14-.78c-1.38.49-.59 2.66.79 2.07 1.38-.49.59-2.56-.79-2.07Zm3.05-1.38c-1.28.69-.1 2.66 1.08 1.97 1.28-.79.1-2.75-1.08-1.97Zm2.66-1.87c-1.08.89.3 2.66 1.48 1.67 1.08-.89-.39-2.66-1.48-1.67Zm2.26-2.36c-.98 1.08.79 2.56 1.67 1.48.98-1.08-.69-2.56-1.67-1.48Zm1.87-2.66c-.79 1.28 1.18 2.36 1.97 1.08.79-1.18-1.18-2.36-1.97-1.08Zm1.38-2.95c-.49 1.38 1.57 2.16 2.07.79.59-1.38-1.57-2.16-2.07-.79Zm.88-3.14c-.3 1.38 1.97 1.77 2.16.39.3-1.48-1.97-1.87-2.16-.39Zm.3-3.25c0 1.48 2.26 1.48 2.26 0s-2.26-1.48-2.26 0Zm-.3-3.25c.2 1.48 2.46 1.08 2.16-.39-.2-1.48-2.46-1.08-2.16.39Zm-.78-3.14c.49 1.38 2.66.59 2.07-.79-.49-1.38-2.66-.59-2.07.79Zm-1.38-3.05c.69 1.28 2.66.1 1.97-1.08-.79-1.28-2.75-.1-1.97 1.08Zm-1.97-2.66c.89 1.08 2.66-.3 1.67-1.48-.79-1.08-2.56.39-1.67 1.48Zm-2.26-2.26c1.08.98 2.56-.79 1.48-1.67-1.18-.98-2.56.69-1.48 1.67Zm-2.66-1.87c1.28.79 2.36-1.18 1.08-1.97-1.18-.79-2.36 1.18-1.08 1.97Zm-2.95-1.38c1.38.49 2.16-1.67.79-2.07-1.38-.59-2.16 1.57-.79 2.07Zm-3.14-.88c1.38.3 1.77-1.97.39-2.16-1.48-.3-1.87 1.97-.39 2.16Z"><title>Gold</title></path>
 </svg>
             <div class="value ajaxReplaceableGoldAmount">
-                &#x202d;488&#x202c;            </div>
+                &#x202d;448&#x202c;            </div>
             <svg viewBox="0 0 50 50" class="silverCoin" onClick="jQuery(window).trigger('startPaymentWizard', {data:{activeTab: Travian.Constants.SHOP_TABS.advantages}}); return false;">
     <defs>
         <linearGradient id="linear-gradient" x1="25" x2="25" y1="2" y2="48" gradientUnits="userSpaceOnUse">
@@ -123,14 +123,14 @@
     <path fill="#6f89a4" d="M25.05 4c1.48 0 1.48 2.26 0 2.26S23.57 4 25.05 4ZM21.7 6.56c1.48-.2 1.08-2.46-.39-2.16-1.38.2-.98 2.46.39 2.16Zm-3.14.78c1.38-.49.59-2.66-.79-2.07-1.28.49-.49 2.66.79 2.07Zm-2.95 1.38c1.28-.69.1-2.66-1.08-1.97-1.28.79-.1 2.75 1.08 1.97Zm-2.66 1.87c1.08-.89-.3-2.66-1.48-1.67-1.08.89.39 2.66 1.48 1.67Zm-2.26 2.36c.98-1.08-.79-2.56-1.67-1.48-.98 1.08.69 2.56 1.67 1.48Zm-1.97 2.66c.79-1.28-1.18-2.36-1.97-1.08-.69 1.18 1.28 2.36 1.97 1.08Zm-1.38 2.95c.59-1.38-1.57-2.07-2.07-.79-.49 1.38 1.67 2.16 2.07.79Zm-.78 3.14c.3-1.38-1.97-1.77-2.16-.39-.3 1.48 1.87 1.87 2.16.39Zm-.3 3.25c0-1.48-2.26-1.48-2.26 0s2.26 1.48 2.26 0Zm.3 3.35c-.2-1.48-2.46-1.08-2.16.39.2 1.38 2.36.98 2.16-.39Zm.78 3.14c-.49-1.38-2.66-.59-2.07.79.49 1.28 2.66.49 2.07-.79Zm1.38 2.95c-.69-1.28-2.66-.1-1.97 1.08.79 1.28 2.75.1 1.97-1.08Zm1.87 2.66c-.89-1.08-2.66.39-1.67 1.48.89 1.08 2.66-.39 1.67-1.48Zm2.36 2.36c-1.08-.98-2.56.79-1.48 1.67 1.08.98 2.56-.79 1.48-1.67Zm2.66 1.87c-1.28-.79-2.36 1.18-1.08 1.97 1.18.69 2.36-1.28 1.08-1.97Zm2.95 1.38c-1.38-.49-2.16 1.67-.79 2.07 1.38.49 2.16-1.57.79-2.07Zm3.14.78c-1.38-.3-1.77 1.97-.39 2.16 1.48.39 1.87-1.87.39-2.16Zm3.25.3c-1.48 0-1.48 2.26 0 2.26s1.48-2.26 0-2.26Zm3.25-.3c-1.48.2-1.08 2.46.39 2.16 1.48-.2 1.08-2.36-.39-2.16Zm3.14-.78c-1.38.49-.59 2.66.79 2.07 1.38-.49.59-2.56-.79-2.07Zm3.05-1.38c-1.28.69-.1 2.66 1.08 1.97 1.28-.79.1-2.75-1.08-1.97Zm2.66-1.87c-1.08.89.3 2.66 1.48 1.67 1.08-.89-.39-2.66-1.48-1.67Zm2.26-2.36c-.98 1.08.79 2.56 1.67 1.48.98-1.08-.69-2.56-1.67-1.48Zm1.87-2.66c-.79 1.28 1.18 2.36 1.97 1.08.79-1.18-1.18-2.36-1.97-1.08Zm1.38-2.95c-.49 1.38 1.57 2.16 2.07.79.59-1.38-1.57-2.16-2.07-.79Zm.88-3.14c-.3 1.38 1.97 1.77 2.16.39.3-1.48-1.97-1.87-2.16-.39Zm.3-3.25c0 1.48 2.26 1.48 2.26 0s-2.26-1.48-2.26 0Zm-.3-3.25c.2 1.48 2.46 1.08 2.16-.39-.2-1.48-2.46-1.08-2.16.39Zm-.78-3.14c.49 1.38 2.66.59 2.07-.79-.49-1.38-2.66-.59-2.07.79Zm-1.38-3.05c.69 1.28 2.66.1 1.97-1.08-.79-1.28-2.75-.1-1.97 1.08Zm-1.97-2.66c.89 1.08 2.66-.3 1.67-1.48-.79-1.08-2.56.39-1.67 1.48Zm-2.26-2.26c1.08.98 2.56-.79 1.48-1.67-1.18-.98-2.56.69-1.48 1.67Zm-2.66-1.87c1.28.79 2.36-1.18 1.08-1.97-1.18-.79-2.36 1.18-1.08 1.97Zm-2.95-1.38c1.38.49 2.16-1.67.79-2.07-1.38-.59-2.16 1.57-.79 2.07Zm-3.14-.88c1.38.3 1.77-1.97.39-2.16-1.48-.3-1.87 1.97-.39 2.16Z"><title>Silver</title></path>
 </svg>
             <div class="value ajaxReplaceableSilverAmount" title="Silver" data-load-tooltip="free-silver">
-                &#x202d;1,033&#x202c;            </div>
+                &#x202d;2,187&#x202c;            </div>
 		</div>
 
 		<a class="shop" href="#" accesskey="8" title="Buy Gold" onclick="jQuery(window).trigger('startPaymentWizard', {}); this.blur(); return false;"></a>
 
 		
 		
-					<a id="button68bdda4ca1ab2"
+					<a id="button68bfc4d511b78"
    	class="layoutButton buttonFramed withIcon round referAFriend green    "
 	title="Refer a friend"
         			href="/referAFriend"
@@ -145,8 +145,8 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca1ab2').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bdda4ca1ab2","redirectUrl":"\/referAFriend","redirectUrlExternal":"","svg":"topBar\/referAFriend.svg","content":""}]);
+	jQuery('#button68bfc4d511b78').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bfc4d511b78","redirectUrl":"\/referAFriend","redirectUrlExternal":"","svg":"topBar\/referAFriend.svg","content":""}]);
 	});
 </script>
 		
@@ -156,43 +156,43 @@
 
         <div class="capacity" title="Warehouse">
             <i class="warehouse_medium"></i>
-            <div class="value">&#x202d;1,200&#x202c;</div>
+            <div class="value">&#x202d;2,300&#x202c;</div>
         </div>
 
-		                    <a class="stockBarButton resource1" href="/production.php?t=1" title="Lumber||Production: 75&lt;br /&gt;Full in: 15:12:48&lt;br /&gt;Click for more information">
+		                    <a class="stockBarButton resource1" href="/production.php?t=1" title="Lumber||Production: 193&lt;br /&gt;Full in: 9:52:32&lt;br /&gt;Click for more information">
                 <i class="lumber_small"></i>
                 <svg class="productionBoost enabled" viewBox="0 0 15 15">
                     <path d="M5 0L5 5L0 5L0 10L5 10L5 15L10 15L10 10L15 10L15 5L10 5L10 0Z" />
                 </svg>
-                <div id="l1" class="value">&#x202d;59&#x202c;</div>
+                <div id="l1" class="value">&#x202d;394&#x202c;</div>
 				<div class="barBox">
 					<div id="lbar1"
 						 class="bar"
-						 style="width:5%;"></div>
+						 style="width:17%;"></div>
 				</div>
             </a>
-                    <a class="stockBarButton resource2" href="/production.php?t=2" title="Clay||Production: 225&lt;br /&gt;Full in: 2:33:04&lt;br /&gt;Click for more information">
+                    <a class="stockBarButton resource2" href="/production.php?t=2" title="Clay||Production: 268&lt;br /&gt;Full in: 5:14:06&lt;br /&gt;Click for more information">
                 <i class="clay_small"></i>
                 <svg class="productionBoost enabled" viewBox="0 0 15 15">
                     <path d="M5 0L5 5L0 5L0 10L5 10L5 15L10 15L10 10L15 10L15 5L10 5L10 0Z" />
                 </svg>
-                <div id="l2" class="value">&#x202d;626&#x202c;</div>
+                <div id="l2" class="value">&#x202d;897&#x202c;</div>
 				<div class="barBox">
 					<div id="lbar2"
 						 class="bar"
-						 style="width:52%;"></div>
+						 style="width:39%;"></div>
 				</div>
             </a>
-                    <a class="stockBarButton resource3" href="/production.php?t=3" title="Iron||Production: 65&lt;br /&gt;Full in: 16:34:09&lt;br /&gt;Click for more information">
+                    <a class="stockBarButton resource3" href="/production.php?t=3" title="Iron||Production: 155&lt;br /&gt;Full in: 6:35:37&lt;br /&gt;Click for more information">
                 <i class="iron_small"></i>
                 <svg class="productionBoost enabled" viewBox="0 0 15 15">
                     <path d="M5 0L5 5L0 5L0 10L5 10L5 15L10 15L10 10L15 10L15 5L10 5L10 0Z" />
                 </svg>
-                <div id="l3" class="value">&#x202d;123&#x202c;</div>
+                <div id="l3" class="value">&#x202d;1,278&#x202c;</div>
 				<div class="barBox">
 					<div id="lbar3"
 						 class="bar"
-						 style="width:10%;"></div>
+						 style="width:56%;"></div>
 				</div>
             </a>
         
@@ -201,25 +201,25 @@
     <div class="granary">
         <div class="capacity" title="Granary">
             <i class="granary_medium"></i>
-            <div class="value">&#x202d;800&#x202c;</div>
+            <div class="value">&#x202d;1,200&#x202c;</div>
         </div>
 
-        <a class="stockBarButton resource4" href="/production.php?t=4" title="Crop||Production less building upkeep: 42&lt;br /&gt;Full in: 82:13:20&lt;br /&gt;Click for more information">
+        <a class="stockBarButton resource4" href="/production.php?t=4" title="Crop||Production less building upkeep: 109&lt;br /&gt;Full in: 10:06:33&lt;br /&gt;Click for more information">
             <i class="crop_small"></i>
             <svg class="productionBoost enabled" viewBox="0 0 15 15">
                 <path d="M5 0L5 5L0 5L0 10L5 10L5 15L10 15L10 10L15 10L15 5L10 5L10 0Z" />
             </svg>
-            <div id="l4" class="value">&#x202d;60&#x202c;</div>
+            <div id="l4" class="value">&#x202d;644&#x202c;</div>
 			<div class="barBox">
 				<div id="lbar4"
 					 class="bar"
-					 style="width:8%;"></div>
+					 style="width:54%;"></div>
 			</div>
         </a>
 
-        <a class="stockBarButton" href="/production.php?t=5" title="Free crop for further buildings||Crop balance: &amp;#x202d;9&amp;#x202c;&lt;br /&gt;Click for more information">
+        <a class="stockBarButton" href="/production.php?t=5" title="Free crop for further buildings||Crop balance: &amp;#x202d;55&amp;#x202c;&lt;br /&gt;Click for more information">
             <i class="freeCrop_small"></i>
-			<div id="stockBarFreeCrop" class="value">&#x202d;16&#x202c;</div>
+			<div id="stockBarFreeCrop" class="value">&#x202d;62&#x202c;</div>
         </a>
 
     </div>
@@ -228,9 +228,9 @@
 
 <script type="text/javascript">
     var resources = {
-        production: {"l1": 75,"l2": 225,"l3": 65,"l4": 9,"l5": 16},
-        storage: {"l1": 59,"l2": 626,"l3": 123,"l4": 60},
-        maxStorage: {"l1": 1200,"l2": 1200,"l3": 1200,"l4": 800}
+        production: {"l1": 193,"l2": 268,"l3": 155,"l4": 55,"l5": 62},
+        storage: {"l1": 394,"l2": 897,"l3": 1278,"l4": 644},
+        maxStorage: {"l1": 2300,"l2": 2300,"l3": 2300,"l4": 1200}
     };
 </script>
 		            <nav id="mobileMenu">
@@ -322,7 +322,7 @@
     </div>
 	            <nav id="outOfGame">
             
-        <a id="button68bdda4ca1e02"
+        <a id="button68bfc4d511ef4"
    	class="layoutButton buttonFramed withIcon round profile grey    "
 	title="Profile||Edit profile description."
         			href="/profile"
@@ -335,12 +335,12 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca1e02').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bdda4ca1e02","redirectUrl":"\/profile","redirectUrlExternal":"","svg":"outOfGame\/profile.svg","content":""}]);
+	jQuery('#button68bfc4d511ef4').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bfc4d511ef4","redirectUrl":"\/profile","redirectUrlExternal":"","svg":"outOfGame\/profile.svg","content":""}]);
 	});
 </script>
 
-        <a id="button68bdda4ca1e5e"
+        <a id="button68bfc4d511f49"
    	class="layoutButton buttonFramed withIcon round options grey    "
 	title="Options||Edit avatar settings."
         			href="/options"
@@ -353,12 +353,12 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca1e5e').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bdda4ca1e5e","redirectUrl":"\/options","redirectUrlExternal":"","svg":"outOfGame\/settings.svg","content":""}]);
+	jQuery('#button68bfc4d511f49').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bfc4d511f49","redirectUrl":"\/options","redirectUrlExternal":"","svg":"outOfGame\/settings.svg","content":""}]);
 	});
 </script>
 
-        <a id="button68bdda4ca1ea9"
+        <a id="button68bfc4d511f92"
    	class="layoutButton buttonFramed withIcon round help grey    "
 	title="Help||Manuals, Answers and Support"
         	            onclick="Travian.React.openHelpDialog()"
@@ -371,11 +371,11 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca1ea9').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bdda4ca1ea9","redirectUrl":"","redirectUrlExternal":"","svg":"outOfGame\/answers.svg","content":"","onclick":"Travian.React.openHelpDialog()"}]);
+	jQuery('#button68bfc4d511f92').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bfc4d511f92","redirectUrl":"","redirectUrlExternal":"","svg":"outOfGame\/answers.svg","content":"","onclick":"Travian.React.openHelpDialog()"}]);
 	});
 </script>
-            <a id="button68bdda4ca1ef5"
+            <a id="button68bfc4d511fd5"
    	class="layoutButton buttonFramed withIcon round logout grey    "
 	title="Logout||Back to the lobby"
         	            onclick="Travian.api('auth/logout'); return false;"
@@ -388,8 +388,8 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca1ef5').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bdda4ca1ef5","redirectUrl":"","redirectUrlExternal":"","svg":"misc\/cross.svg","content":"","onclick":"Travian.api('auth\/logout'); return false;"}]);
+	jQuery('#button68bfc4d511fd5').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bfc4d511fd5","redirectUrl":"","redirectUrlExternal":"","svg":"misc\/cross.svg","content":"","onclick":"Travian.api('auth\/logout'); return false;"}]);
 	});
 </script>
 </nav>
@@ -407,44 +407,52 @@
 			<svg class="health" viewBox="0 0 110 110">
 			<defs>
 				<clipPath id="healthMask" maskContentUnits="objectBoundingBox">
-					<path d="M55 55L47.35 109.46A 55 55 0 0 0 109.93 52.14" fill="white" />
+					<path d="M55 55L47.35 109.46A 55 55 0 0 0 95.28 92.45" fill="white" />
 				</clipPath>
 			</defs>
 
 			<image xlink:href="//cdn.legends.travian.com/gpack/228.4/img_ltr/hud/topBar/hero/frame/health.png" x="0" y="0" width="110" height="110" style="clip-path: url(#healthMask);" />
 
 			<path class="title" d="M55 55L47.35 109.46A 55 55 0 0 0 109.87 51.16" fill="transparent">
-				<title>Health: &#x202d;&#x202d;99&#x202c;&#37;&#x202c;</title>
+				<title>Health: &#x202d;&#x202d;54&#x202c;&#37;&#x202c;</title>
 			</path>
 		</svg>
 			<svg class="experience" viewBox="0 0 110 110">
 			<defs>
 				<clipPath id="experienceMask" maskContentUnits="objectBoundingBox">
-					<path d="M55 55L32.63 105.25A 55 55 0 0 1 2.33 39.18" fill="white" />
+					<path d="M55 55L32.63 105.25A 55 55 0 0 1 1.16 66.24" fill="white" />
 				</clipPath>
 			</defs>
 
 			<image xlink:href="//cdn.legends.travian.com/gpack/228.4/img_ltr/hud/topBar/hero/frame/experience.png" x="0" y="0" width="110" height="110" style="clip-path: url(#experienceMask);" />
 
 			<path class="title" d="M55 55L32.63 105.25A 55 55 0 0 1 4 34.4" fill="transparent">
-				<title>Experience &amp;#x202d;&amp;#x202d;94&amp;#x202c;&amp;#37;&amp;#x202c;||Your hero needs 9 experience to achieve level 3.</title>
+				<title>Experience &amp;#x202d;&amp;#x202d;62&amp;#x202c;&amp;#37;&amp;#x202c;||Your hero needs 96 experience to achieve level 5.</title>
 			</path>
 		</svg>
 	
-	<a id="heroImageButton" href="/hero" class="heroImageButton" type="button" title="Hero overview||Hero is currently in village &lt;a href=&quot;/karte.php?d=110802&quot;&gt;Dope#01&lt;/a&gt;.">
+	<a id="heroImageButton" href="/hero" class="heroImageButton" type="button" title="Hero overview||Your hero is on its way back to the village &amp;#x202d;&lt;span class=&quot;coordinates coordinatesWrapper&quot;&gt;&lt;span class=&quot;coordinateX&quot;&gt;(&amp;#x202d;&amp;minus;&amp;#x202d;75&amp;#x202c;&amp;#x202c;&lt;/span&gt;&lt;span class=&quot;coordinatePipe&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;coordinateY&quot;&gt;&amp;#x202d;&amp;minus;&amp;#x202d;76&amp;#x202c;&amp;#x202c;)&lt;/span&gt;&lt;/span&gt;&amp;#x202c;. Arrival in &lt;span id=&quot;topBarHero_tooltip_timer&quot;&gt;&lt;span id=&quot;timer68bfc4d5122a9&quot;  class=&quot;timer&quot; counting=&quot;down&quot; value=&quot;325&quot;&gt;0:05:25&lt;/span&gt;
+                &lt;script type=&quot;text/javascript&quot;&gt;
+                    window.addEventListener(Travian.TimersAndCounters.timerEndEvent + &#039;_timer68bfc4d5122a9&#039;, () =&gt; {Travian.Game.Hero.refreshInHUD();});
+                &lt;/script&gt;
+            &lt;/span&gt; at 07:15">
         <div class="heroImageHover">
             <img class="heroImage heroImageMale" src="/heroV2/head/ff5cd1d896826f4acb580d8b5d77f6d1826e5881.5462.1.png"  title="Hero" alt="Hero" />
         </div>
 	</a>
 
-	<div class="heroStatus" title="Hero overview||Hero is currently in village &lt;a href=&quot;/karte.php?d=110802&quot;&gt;Dope#01&lt;/a&gt;.">
-        <a href="/build.php?newdid=33462&id=39&&tt=2" title="" class=""><i class="heroHome" ></i></a>
-        <span class="hide"><i class="heroHome" ></i></span>
+	<div class="heroStatus" title="Hero overview||Your hero is on its way back to the village &amp;#x202d;&lt;span class=&quot;coordinates coordinatesWrapper&quot;&gt;&lt;span class=&quot;coordinateX&quot;&gt;(&amp;#x202d;&amp;minus;&amp;#x202d;75&amp;#x202c;&amp;#x202c;&lt;/span&gt;&lt;span class=&quot;coordinatePipe&quot;&gt;|&lt;/span&gt;&lt;span class=&quot;coordinateY&quot;&gt;&amp;#x202d;&amp;minus;&amp;#x202d;76&amp;#x202c;&amp;#x202c;)&lt;/span&gt;&lt;/span&gt;&amp;#x202c;. Arrival in &lt;span id=&quot;topBarHero_tooltip_timer&quot;&gt;&lt;span id=&quot;timer68bfc4d5122a9&quot;  class=&quot;timer&quot; counting=&quot;down&quot; value=&quot;325&quot;&gt;0:05:25&lt;/span&gt;
+                &lt;script type=&quot;text/javascript&quot;&gt;
+                    window.addEventListener(Travian.TimersAndCounters.timerEndEvent + &#039;_timer68bfc4d5122a9&#039;, () =&gt; {Travian.Game.Hero.refreshInHUD();});
+                &lt;/script&gt;
+            &lt;/span&gt; at 07:15">
+        <a href="/build.php?newdid=33462&id=39&&tt=1" title="" class=""><i class="heroRunning" ></i></a>
+        <span class="hide"><i class="heroRunning" ></i></span>
 	</div>
 
     <i class="levelUp " title="Available attribute points.|| Click on your hero and distribute the attribute points."></i>
 
-	<a id="button68bdda4ca23f6"
+	<a id="button68bfc4d5128d2"
    	class="layoutButton buttonFramed withIcon round auction green    "
 	title="Auctions||Tooltip loading..."
     data-load-tooltip="hero"    data-load-tooltip-data="{&quot;boxId&quot;:&quot;hero&quot;,&quot;buttonId&quot;:&quot;auction&quot;}"			href="/auctions"
@@ -457,25 +465,21 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca23f6').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":"hero","boxId":"hero","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bdda4ca23f6","redirectUrl":"\/auctions","redirectUrlExternal":"","svg":"topBar\/auction.svg","content":"","title":"Auctions||Tooltip loading..."}]);
+	jQuery('#button68bfc4d5128d2').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":"hero","boxId":"hero","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bfc4d5128d2","redirectUrl":"\/auctions","redirectUrlExternal":"","svg":"topBar\/auction.svg","content":"","title":"Auctions||Tooltip loading..."}]);
 	});
 </script>
-<a id="button68bdda4ca2482"
-   	class="layoutButton buttonFramed withIcon round adventure green    "
+<a id="button68bfc4d512961"
+   	class="layoutButton buttonFramed withIcon round adventure green    attention"
 	title="Adventure||Tooltip loading..."
     data-load-tooltip="hero"    data-load-tooltip-data="{&quot;boxId&quot;:&quot;hero&quot;,&quot;buttonId&quot;:&quot;adventure&quot;}"			href="/hero/adventures"
 	        	>
-					<svg viewBox="0 0 19.75 20" class="adventure"><g class="outline">
-  <path d="M7.82 5L11 8.14 9.22 9.92 6 6.74 2.86 9.92 1.08 8.14 4.26 5 1.08 1.78 2.86 0 6 3.18 9.22 0 11 1.78zm6.83 9.92a2.56 2.56 0 1 0 2.56 2.56 2.56 2.56 0 0 0-2.56-2.6zm-3.55 2.6s-2-.26-4.21-.73A14.89 14.89 0 0 1 2.6 15.4c.55-.37 2.13-1.1 6.49-2 7.6-1.58 10.69-3.1 10.66-5.25 0-1.86-2.44-2.86-4.26-3.45a30.7 30.7 0 0 0-3.58-.9l-.42 2.32c2.85.52 5.31 1.47 5.84 2.06-.32.35-1.82 1.48-8.72 2.91-6.27 1.3-8.68 2.53-8.61 4.39C.06 17 1.8 18 5.83 19c2.46.57 4.87.88 5 .9z"></path>
-</g><g class="icon">
-  <path d="M7.82 5L11 8.14 9.22 9.92 6 6.74 2.86 9.92 1.08 8.14 4.26 5 1.08 1.78 2.86 0 6 3.18 9.22 0 11 1.78zm6.83 9.92a2.56 2.56 0 1 0 2.56 2.56 2.56 2.56 0 0 0-2.56-2.6zm-3.55 2.6s-2-.26-4.21-.73A14.89 14.89 0 0 1 2.6 15.4c.55-.37 2.13-1.1 6.49-2 7.6-1.58 10.69-3.1 10.66-5.25 0-1.86-2.44-2.86-4.26-3.45a30.7 30.7 0 0 0-3.58-.9l-.42 2.32c2.85.52 5.31 1.47 5.84 2.06-.32.35-1.82 1.48-8.72 2.91-6.27 1.3-8.68 2.53-8.61 4.39C.06 17 1.8 18 5.83 19c2.46.57 4.87.88 5 .9z"></path>
-</g></svg>
+					<div class="content">1</div>
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca2482').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":"hero","boxId":"hero","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bdda4ca2482","redirectUrl":"\/hero\/adventures","redirectUrlExternal":"","svg":"topBar\/adventure.svg","content":"","title":"Adventure||Tooltip loading..."}]);
+	jQuery('#button68bfc4d512961').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":"hero","boxId":"hero","disabled":false,"attention":true,"colorBlind":false,"class":"","id":"button68bfc4d512961","redirectUrl":"\/hero\/adventures","redirectUrlExternal":"","svg":false,"content":1,"title":"Adventure||Tooltip loading..."}]);
 	});
 </script>
 </div>
@@ -489,7 +493,7 @@
                     <div class="sidebarBoxWrapper">
                                             <div id="servertime" class="stime">
 	Server time:&nbsp;
-	<span  format="24h" class="timer" counting="up" value="1757272652">20:17:32</span></div>
+	<span  format="24h" class="timer" counting="up" value="1757398229">07:10:29</span></div>
 
 <script type="text/javascript">
     Travian.Game.timezoneOffsetToUTC = -3600;
@@ -506,7 +510,7 @@
 <span class="value ">&#x202d;&#x202d;1&#x202c;&times;&#x202c;</span></div>
 <ul>
         <li id=infoID_112805 class="infoType_23 firstElement active unreaded">
-            You still have <span  class="timer" counting="down" value="351822">97:43:42</span> hours of beginner&#39;s protection left.        </li>
+            You still have <span  class="timer" counting="down" value="226245">62:50:45</span> hours of beginner&#39;s protection left.        </li>
         </ul>
 
 
@@ -549,7 +553,7 @@
 <div id="sidebarBoxLinklist" class="sidebarBox  expanded">
 	<div class="header">
 		<div class="buttonsWrapper">
-    <a id="button68bdda4ca2b04"
+    <a id="button68bfc4d51363d"
    	class="layoutButton buttonFramed withIcon round edit green    "
 	title="Edit link list"
         			href="/linklist.php"
@@ -562,8 +566,8 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca2b04').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bdda4ca2b04","redirectUrl":"\/linklist.php","redirectUrlExternal":"","svg":"sideBar\/editUnderlined.svg","content":"","title":"Edit link list"}]);
+	jQuery('#button68bfc4d51363d').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"","id":"button68bfc4d51363d","redirectUrl":"\/linklist.php","redirectUrlExternal":"","svg":"sideBar\/editUnderlined.svg","content":"","title":"Edit link list"}]);
 	});
 </script>
 </div>
@@ -610,7 +614,7 @@
         <div class="scrollingContainer">
                             <div class="content  favor  favorKey0">
                     <a
-                        id="button68bdda4c9fc54"                        title="Management"
+                        id="button68bfc4d50e85b"                        title="Management"
                         class="tabItem  normal "
                                                 href="/build.php?id=39&gid=16&tt=0"                                            >
                         Management                    </a>
@@ -618,9 +622,9 @@
 
                                     <script type="text/javascript">
                         jQuery(function() {
-                            if (jQuery('#button68bdda4c9fc54').length > 0) {
-                                jQuery('#button68bdda4c9fc54').on('click', function () {
-                                    jQuery(window).trigger('tabClicked', [this, {"class":" normal","title":"Management","target":false,"id":"button68bdda4c9fc54","href":"\/build.php?id=39&gid=16&tt=0","onclick":false,"enabled":true,"text":"Management","dialog":false,"plusDialog":false,"goldclubDialog":false,"containerId":"","buttonIdentifier":"button68bdda4c9fc54"}]);
+                            if (jQuery('#button68bfc4d50e85b').length > 0) {
+                                jQuery('#button68bfc4d50e85b').on('click', function () {
+                                    jQuery(window).trigger('tabClicked', [this, {"class":" normal","title":"Management","target":false,"id":"button68bfc4d50e85b","href":"\/build.php?id=39&gid=16&tt=0","onclick":false,"enabled":true,"text":"Management","dialog":false,"plusDialog":false,"goldclubDialog":false,"containerId":"","buttonIdentifier":"button68bfc4d50e85b"}]);
                                 });
                             }
                         });
@@ -628,7 +632,7 @@
                 
                             <div class="content overviewRallyPoint favor  favorKey1">
                     <a
-                        id="button68bdda4c9fc58"                        title="Overview"
+                        id="button68bfc4d50e85f"                        title="Overview"
                         class="tabItem  normal "
                                                 href="/build.php?id=39&gid=16&tt=1"                                            >
                         Overview                    </a>
@@ -636,9 +640,9 @@
 
                                     <script type="text/javascript">
                         jQuery(function() {
-                            if (jQuery('#button68bdda4c9fc58').length > 0) {
-                                jQuery('#button68bdda4c9fc58').on('click', function () {
-                                    jQuery(window).trigger('tabClicked', [this, {"class":" normal","title":"Overview","target":false,"id":"button68bdda4c9fc58","href":"\/build.php?id=39&gid=16&tt=1","onclick":false,"enabled":true,"text":"Overview","dialog":false,"plusDialog":false,"goldclubDialog":false,"containerId":"overviewRallyPoint","buttonIdentifier":"button68bdda4c9fc58"}]);
+                            if (jQuery('#button68bfc4d50e85f').length > 0) {
+                                jQuery('#button68bfc4d50e85f').on('click', function () {
+                                    jQuery(window).trigger('tabClicked', [this, {"class":" normal","title":"Overview","target":false,"id":"button68bfc4d50e85f","href":"\/build.php?id=39&gid=16&tt=1","onclick":false,"enabled":true,"text":"Overview","dialog":false,"plusDialog":false,"goldclubDialog":false,"containerId":"overviewRallyPoint","buttonIdentifier":"button68bfc4d50e85f"}]);
                                 });
                             }
                         });
@@ -646,7 +650,7 @@
                 
                             <div class="content  favor  favorKey2">
                     <a
-                        id="button68bdda4c9fc59"                        title="Send troops"
+                        id="button68bfc4d50e861"                        title="Send troops"
                         class="tabItem  active "
                                                 href="/build.php?id=39&gid=16&tt=2"                                            >
                         Send troops                    </a>
@@ -654,9 +658,9 @@
 
                                     <script type="text/javascript">
                         jQuery(function() {
-                            if (jQuery('#button68bdda4c9fc59').length > 0) {
-                                jQuery('#button68bdda4c9fc59').on('click', function () {
-                                    jQuery(window).trigger('tabClicked', [this, {"class":" active","title":"Send troops","target":false,"id":"button68bdda4c9fc59","href":"\/build.php?id=39&gid=16&tt=2","onclick":false,"enabled":true,"text":"Send troops","dialog":false,"plusDialog":false,"goldclubDialog":false,"containerId":"","buttonIdentifier":"button68bdda4c9fc59"}]);
+                            if (jQuery('#button68bfc4d50e861').length > 0) {
+                                jQuery('#button68bfc4d50e861').on('click', function () {
+                                    jQuery(window).trigger('tabClicked', [this, {"class":" active","title":"Send troops","target":false,"id":"button68bfc4d50e861","href":"\/build.php?id=39&gid=16&tt=2","onclick":false,"enabled":true,"text":"Send troops","dialog":false,"plusDialog":false,"goldclubDialog":false,"containerId":"","buttonIdentifier":"button68bfc4d50e861"}]);
                                 });
                             }
                         });
@@ -664,7 +668,7 @@
                 
                             <div class="content  favor  favorKey3">
                     <a
-                        id="button68bdda4c9fc5a"                        title="Simulators"
+                        id="button68bfc4d50e862"                        title="Simulators"
                         class="tabItem  normal "
                                                 href="/build.php?id=39&gid=16&tt=3"                                            >
                         Simulators                    </a>
@@ -672,9 +676,9 @@
 
                                     <script type="text/javascript">
                         jQuery(function() {
-                            if (jQuery('#button68bdda4c9fc5a').length > 0) {
-                                jQuery('#button68bdda4c9fc5a').on('click', function () {
-                                    jQuery(window).trigger('tabClicked', [this, {"class":" normal","title":"Simulators","target":false,"id":"button68bdda4c9fc5a","href":"\/build.php?id=39&gid=16&tt=3","onclick":false,"enabled":true,"text":"Simulators","dialog":false,"plusDialog":false,"goldclubDialog":false,"containerId":"","buttonIdentifier":"button68bdda4c9fc5a"}]);
+                            if (jQuery('#button68bfc4d50e862').length > 0) {
+                                jQuery('#button68bfc4d50e862').on('click', function () {
+                                    jQuery(window).trigger('tabClicked', [this, {"class":" normal","title":"Simulators","target":false,"id":"button68bfc4d50e862","href":"\/build.php?id=39&gid=16&tt=3","onclick":false,"enabled":true,"text":"Simulators","dialog":false,"plusDialog":false,"goldclubDialog":false,"containerId":"","buttonIdentifier":"button68bfc4d50e862"}]);
                                 });
                             }
                         });
@@ -682,7 +686,7 @@
                 
                             <div class="content  favor  favorKey99">
                     <a
-                        id="button68bdda4c9fc5b"                        title="Farm List"
+                        id="button68bfc4d50e863"                        title="Farm List"
                         class="tabItem  normal "
                                                 href="/build.php?id=39&gid=16&tt=99"                                            >
                         Farm List                    </a>
@@ -690,9 +694,9 @@
 
                                     <script type="text/javascript">
                         jQuery(function() {
-                            if (jQuery('#button68bdda4c9fc5b').length > 0) {
-                                jQuery('#button68bdda4c9fc5b').on('click', function () {
-                                    jQuery(window).trigger('tabClicked', [this, {"class":" normal","title":"Farm List","target":false,"id":"button68bdda4c9fc5b","href":"\/build.php?id=39&gid=16&tt=99","onclick":false,"enabled":true,"text":"Farm List","dialog":false,"plusDialog":false,"goldclubDialog":false,"containerId":"","buttonIdentifier":"button68bdda4c9fc5b"}]);
+                            if (jQuery('#button68bfc4d50e863').length > 0) {
+                                jQuery('#button68bfc4d50e863').on('click', function () {
+                                    jQuery(window).trigger('tabClicked', [this, {"class":" normal","title":"Farm List","target":false,"id":"button68bfc4d50e863","href":"\/build.php?id=39&gid=16&tt=99","onclick":false,"enabled":true,"text":"Farm List","dialog":false,"plusDialog":false,"goldclubDialog":false,"containerId":"","buttonIdentifier":"button68bfc4d50e863"}]);
                                 });
                             }
                         });
@@ -719,10 +723,10 @@
             <img class="unit u61" src="/img/x.gif" title="Mercenary" onclick="Travian.Game.Manual.open('troop', 61);" alt="Mercenary"/>
             <input type="text"
                 inputmode="numeric"
-                class="text"
+                class="text disabled"
                 name="troop[t1]"
                 value=""
-                maxlength="6" />&nbsp;/&nbsp;<a href="#" onclick="jQuery('table#troops').find('input[name=\'troop[t1]\']').val(1).focus(); return false">&#x202d;1&#x202c;</a>&#x202c;        </td>
+                maxlength="6" disabled />&nbsp;/&nbsp;<span class="none">&#x202d;0&#x202c;</span>&#x202c;        </td>
         <td class="line-first large ">
             
             <img class="unit u64" src="/img/x.gif" title="Steppe Rider" onclick="Travian.Game.Manual.open('troop', 64);" alt="Steppe Rider"/>
@@ -810,15 +814,8 @@
                 maxlength="6" disabled />&nbsp;/&nbsp;<span class="none">&#x202d;0&#x202c;</span>&#x202c;        </td>
         <td class="line-last regular ">
         </td>
-        <td class="line-last column-last small ">
-            
-            <img class="unit uhero" src="/img/x.gif" title="Hero" alt="Hero"/>
-            <input type="text"
-                inputmode="numeric"
-                class="text"
-                name="troop[t11]"
-                value=""
-                maxlength="6" />&nbsp;/&nbsp;<a href="#" onclick="jQuery('table#troops').find('input[name=\'troop[t11]\']').val(1).focus(); return false">&#x202d;1&#x202c;</a>&#x202c;        </td>
+        <td class="line-last column-last ">
+        </td>
     </tr>
 </table>
 <script>
@@ -846,11 +843,11 @@
                 <div class="coordinatesInput">
             <div class="xCoord">
                 <label for="xCoordInput">X:</label>
-                <input type="text" inputmode="numeric" maxlength="4" value="-76" name="x" id="xCoordInput" class="text coordinates x "  onkeyup="Travian.Formatter.Filter.aNumber(this)" onpaste="var cih = new Travian.Game.RallyPoint.CoordinatesInputHelper({coordinateXInputId: 'xCoordInput', coordinateYInputId: 'yCoordInput'}); cih.insertCoordinates(event);"  />
+                <input type="text" inputmode="numeric" maxlength="4" value="-75" name="x" id="xCoordInput" class="text coordinates x "  onkeyup="Travian.Formatter.Filter.aNumber(this)" onpaste="var cih = new Travian.Game.RallyPoint.CoordinatesInputHelper({coordinateXInputId: 'xCoordInput', coordinateYInputId: 'yCoordInput'}); cih.insertCoordinates(event);"  />
             </div>
             <div class="yCoord">
                 <label for="yCoordInput">Y:</label>
-                <input type="text" inputmode="numeric" maxlength="4" value="-78" name="y" id="yCoordInput" class="text coordinates y "  onkeyup="Travian.Formatter.Filter.aNumber(this)" onpaste="var cih = new Travian.Game.RallyPoint.CoordinatesInputHelper({coordinateXInputId: 'xCoordInput', coordinateYInputId: 'yCoordInput'}); cih.insertCoordinates(event);"   />
+                <input type="text" inputmode="numeric" maxlength="4" value="-62" name="y" id="yCoordInput" class="text coordinates y "  onkeyup="Travian.Formatter.Filter.aNumber(this)" onpaste="var cih = new Travian.Game.RallyPoint.CoordinatesInputHelper({coordinateXInputId: 'xCoordInput', coordinateYInputId: 'yCoordInput'}); cih.insertCoordinates(event);"   />
             </div>
             <div class="clear"></div>
         </div>                <div class="clear"></div>
@@ -915,7 +912,7 @@
                                     <div class="slot"></div>
                             </div>
                     <div class="quickLinkSlot">
-                                                        <a id="button68bdda4ca8709"
+                                                        <a id="button68bfc4d51a581"
    	class="layoutButton buttonFramed withIcon round activeVillageMarketplaceSendResources green disabled quickLink MarketplaceSendResources  "
 	title=""
         	            onclick="event.preventDefault();"
@@ -928,13 +925,13 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca8709').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":true,"attention":false,"colorBlind":false,"class":"quickLink MarketplaceSendResources","id":"button68bdda4ca8709","redirectUrl":"","redirectUrlExternal":"","svg":"sideBar\/quickLinks\/quickLinkMarketplaceSendResources.svg","content":"","onclick":"event.preventDefault();"}]);
+	jQuery('#button68bfc4d51a581').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":true,"attention":false,"colorBlind":false,"class":"quickLink MarketplaceSendResources","id":"button68bfc4d51a581","redirectUrl":"","redirectUrlExternal":"","svg":"sideBar\/quickLinks\/quickLinkMarketplaceSendResources.svg","content":"","onclick":"event.preventDefault();"}]);
 	});
 </script>
                             </div>
                     <div class="quickLinkSlot">
-                                                        <a id="button68bdda4ca8810"
+                                                        <a id="button68bfc4d51a691"
    	class="layoutButton buttonFramed withIcon round activeVillageBarracksManagement green  quickLink BarracksManagement  "
 	title=""
         	        	>
@@ -946,13 +943,13 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca8810').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"quickLink BarracksManagement","id":"button68bdda4ca8810","redirectUrl":"","redirectUrlExternal":"","svg":"sideBar\/quickLinks\/quickLinkBarracksManagement.svg","content":""}]);
+	jQuery('#button68bfc4d51a691').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"quickLink BarracksManagement","id":"button68bfc4d51a691","redirectUrl":"","redirectUrlExternal":"","svg":"sideBar\/quickLinks\/quickLinkBarracksManagement.svg","content":""}]);
 	});
 </script>
                             </div>
                     <div class="quickLinkSlot">
-                                                        <a id="button68bdda4ca8897"
+                                                        <a id="button68bfc4d51a76d"
    	class="layoutButton buttonFramed withIcon round activeVillageStableManagement green disabled quickLink StableManagement  "
 	title=""
         	            onclick="event.preventDefault();"
@@ -965,13 +962,13 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca8897').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":true,"attention":false,"colorBlind":false,"class":"quickLink StableManagement","id":"button68bdda4ca8897","redirectUrl":"","redirectUrlExternal":"","svg":"sideBar\/quickLinks\/quickLinkStableManagement.svg","content":"","onclick":"event.preventDefault();"}]);
+	jQuery('#button68bfc4d51a76d').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":true,"attention":false,"colorBlind":false,"class":"quickLink StableManagement","id":"button68bfc4d51a76d","redirectUrl":"","redirectUrlExternal":"","svg":"sideBar\/quickLinks\/quickLinkStableManagement.svg","content":"","onclick":"event.preventDefault();"}]);
 	});
 </script>
                             </div>
                     <div class="quickLinkSlot">
-                                                        <a id="button68bdda4ca892c"
+                                                        <a id="button68bfc4d51a816"
    	class="layoutButton buttonFramed withIcon round activeVillageWorkshopManagement green disabled quickLink WorkshopManagement  "
 	title=""
         	            onclick="event.preventDefault();"
@@ -984,13 +981,13 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca892c').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":true,"attention":false,"colorBlind":false,"class":"quickLink WorkshopManagement","id":"button68bdda4ca892c","redirectUrl":"","redirectUrlExternal":"","svg":"sideBar\/quickLinks\/quickLinkWorkshopManagement.svg","content":"","onclick":"event.preventDefault();"}]);
+	jQuery('#button68bfc4d51a816').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":true,"attention":false,"colorBlind":false,"class":"quickLink WorkshopManagement","id":"button68bfc4d51a816","redirectUrl":"","redirectUrlExternal":"","svg":"sideBar\/quickLinks\/quickLinkWorkshopManagement.svg","content":"","onclick":"event.preventDefault();"}]);
 	});
 </script>
                             </div>
         
-        <a id="button68bdda4ca89cf"
+        <a id="button68bfc4d51a8ab"
    	class="layoutButton buttonFramed withIcon round activeVillageQuickLinksSettings grey  settings  "
 	title=""
         	        	>
@@ -1002,8 +999,8 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca89cf').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"settings","id":"button68bdda4ca89cf","redirectUrl":"","redirectUrlExternal":"","svg":"misc\/threeDots.svg","content":"","title":"Open quick links settings"}]);
+	jQuery('#button68bfc4d51a8ab').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"settings","id":"button68bfc4d51a8ab","redirectUrl":"","redirectUrlExternal":"","svg":"misc\/threeDots.svg","content":"","title":"Open quick links settings"}]);
 	});
 </script>
     </div>
@@ -1023,7 +1020,7 @@
 	</div>
 
 <div class="population">
-	Population: <span>&#x202d;56&#x202c;</span>
+	Population: <span>&#x202d;92&#x202c;</span>
 </div>
 
 <div class="loyalty medium">
@@ -1084,7 +1081,7 @@
                     <div class="quickLinkSlot">
                                     <div class="slot"></div>
                             </div>
-                <a id="button68bdda4ca8c6d"
+                <a id="button68bfc4d51acd5"
    	class="layoutButton buttonFramed withIcon round overview green  villageStatistics  "
 	title="Village statistics"
         			href="/village/statistics"
@@ -1098,11 +1095,11 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca8c6d').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"villageStatistics","id":"button68bdda4ca8c6d","redirectUrl":"\/village\/statistics","redirectUrlExternal":"","svg":"sideBar\/overview.svg","content":"","accesskey":9}]);
+	jQuery('#button68bfc4d51acd5').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"green","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"villageStatistics","id":"button68bfc4d51acd5","redirectUrl":"\/village\/statistics","redirectUrlExternal":"","svg":"sideBar\/overview.svg","content":"","accesskey":9}]);
 	});
 </script>
-        <a id="button68bdda4ca8d05"
+        <a id="button68bfc4d51ad57"
    	class="layoutButton buttonFramed withIcon round villageListQuickLinksSettings grey  settings  "
 	title=""
         	        	>
@@ -1114,8 +1111,8 @@
 		</a>
 
 <script type="text/javascript">
-	jQuery('#button68bdda4ca8d05').click(function (event) {
-		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"settings","id":"button68bdda4ca8d05","redirectUrl":"","redirectUrlExternal":"","svg":"misc\/threeDots.svg","content":"","title":"Open quick links settings"}]);
+	jQuery('#button68bfc4d51ad57').click(function (event) {
+		jQuery(window).trigger('buttonClicked', [event.delegateTarget, {"type":"grey","loadTooltip":null,"boxId":"","disabled":false,"attention":false,"colorBlind":false,"class":"settings","id":"button68bfc4d51ad57","redirectUrl":"","redirectUrlExternal":"","svg":"misc\/threeDots.svg","content":"","title":"Open quick links settings"}]);
 	});
 </script>
     </div>
@@ -1127,7 +1124,7 @@
 		Villages		<span class="slots">&#x202d;&#x202d;1&#x202c;/&#x202d;1&#x202c;&#x202c;</span>
 	</div>
 	<div class="barWrapper">
-		<div class="bar" style="width:28.65%">&nbsp;</div>
+		<div class="bar" style="width:31.3%">&nbsp;</div>
 	</div>
 </div>
 
@@ -1144,7 +1141,7 @@
         </div>
 		            <div class="dropContainer">
     <div class="listEntry village active" data-did="33462">
-                <a href="?newdid=33462&amp;x=-76&amp;y=-78&amp;tt=2&amp;eventType=4&amp;gid=16"  class="active">
+                <a href="?newdid=33462&amp;x=-75&amp;y=-62&amp;tt=2&amp;eventType=4&amp;gid=16"  class="active">
                     <span class="iconAndNameWrapper">
                 <span class="incomingTroops" data-id="33462">
                     <svg viewBox="0 0 20 19.06" class="attack">
@@ -1168,7 +1165,7 @@
         window.Travian.React.VillageBoxes.render(
                 {
                     gqlQuery: "query{bootstrapData{buildings{type validTribes}serverSupportedFeatures{keepVidOnConquer}} ownPlayer{name tribeId isSitter goldFeatures{travianPlus{isActive}goldClub}village{id tribeId name sortIndex population loyalty quickLinks{all{type buildingIsAvailable availableBuildingId}villageListSet{type buildingIsAvailable availableBuildingId}villageSet{type buildingIsAvailable availableBuildingId}}}isSitter culturalPointsOverview{usedSlots maxControllableVillages cpProducedForNextSlot cpNeededForNextSlot}profileBan{isActive tooltip}villageList{... on VillageListGroup{id name color villages{id name distance incomingAttacksAmount incomingAttacksSymbols{gray green red yellow}x y}} ... on VillageListVillage{id name distance incomingAttacksAmount incomingAttacksSymbols{gray green red yellow}x y}}}}",
-                    viewData: {"bootstrapData":{"buildings":[{"type":1,"validTribes":[1,2,3,6,7]},{"type":2,"validTribes":[1,2,3,6,7]},{"type":3,"validTribes":[1,2,3,6,7]},{"type":4,"validTribes":[1,2,3,6,7]},{"type":5,"validTribes":[1,2,3,6,7]},{"type":6,"validTribes":[1,2,3,6,7]},{"type":7,"validTribes":[1,2,3,6,7]},{"type":8,"validTribes":[1,2,3,6,7]},{"type":9,"validTribes":[1,2,3,6,7]},{"type":10,"validTribes":[1,2,3,6,7]},{"type":11,"validTribes":[1,2,3,6,7]},{"type":13,"validTribes":[1,2,3,6,7]},{"type":14,"validTribes":[1,2,3,6,7]},{"type":15,"validTribes":[1,2,3,6,7]},{"type":16,"validTribes":[1,2,3,6,7]},{"type":17,"validTribes":[1,2,3,6,7]},{"type":18,"validTribes":[1,2,3,6,7]},{"type":19,"validTribes":[1,2,3,6,7]},{"type":20,"validTribes":[1,2,3,6,7]},{"type":21,"validTribes":[1,2,3,6,7]},{"type":22,"validTribes":[1,2,3,6,7]},{"type":23,"validTribes":[1,2,3,6,7]},{"type":24,"validTribes":[1,2,3,6,7]},{"type":25,"validTribes":[1,2,3,6,7]},{"type":26,"validTribes":[1,2,3,6,7]},{"type":27,"validTribes":[1,2,3,6,7]},{"type":28,"validTribes":[1,2,3,6,7]},{"type":29,"validTribes":[1,2,3,6,7]},{"type":30,"validTribes":[1,2,3,6,7]},{"type":31,"validTribes":[1]},{"type":32,"validTribes":[2]},{"type":33,"validTribes":[3]},{"type":34,"validTribes":[1,2,3,6,7]},{"type":35,"validTribes":[2]},{"type":36,"validTribes":[3]},{"type":37,"validTribes":[1,2,3,6,7]},{"type":38,"validTribes":[1,2,3,6,7]},{"type":39,"validTribes":[1,2,3,6,7]},{"type":40,"validTribes":[]},{"type":41,"validTribes":[1]},{"type":42,"validTribes":[6]},{"type":43,"validTribes":[7]},{"type":44,"validTribes":[7]},{"type":45,"validTribes":[6]},{"type":46,"validTribes":[1,2,3,6,7]}],"serverSupportedFeatures":{"keepVidOnConquer":false}},"ownPlayer":{"name":"DopaMeMe","tribeId":7,"isSitter":false,"goldFeatures":{"travianPlus":{"isActive":true},"goldClub":true},"village":{"id":33462,"tribeId":7,"name":"Dope#01","sortIndex":1,"population":56,"loyalty":100,"quickLinks":{"all":[{"type":"BlacksmithManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"RallyPointOverview","buildingIsAvailable":true,"availableBuildingId":16},{"type":"RallyPointSendTroops","buildingIsAvailable":true,"availableBuildingId":16},{"type":"RallyPointFarmList","buildingIsAvailable":true,"availableBuildingId":16},{"type":"MarketplaceSendResources","buildingIsAvailable":false,"availableBuildingId":null},{"type":"MarketplaceTradeRoutes","buildingIsAvailable":false,"availableBuildingId":null},{"type":"MarketplaceBuy","buildingIsAvailable":false,"availableBuildingId":null},{"type":"BarracksManagement","buildingIsAvailable":true,"availableBuildingId":19},{"type":"GreatBarracksManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"StableManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"GreatStableManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"WorkshopManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"TownHallCelebration","buildingIsAvailable":false,"availableBuildingId":null},{"type":"TrapperManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"HerosMansionManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"HospitalManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"ExpansionTrain","buildingIsAvailable":false,"availableBuildingId":null}],"villageListSet":[null,null,null,null],"villageSet":[null,{"type":"MarketplaceSendResources","buildingIsAvailable":false,"availableBuildingId":null},{"type":"BarracksManagement","buildingIsAvailable":true,"availableBuildingId":19},{"type":"StableManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"WorkshopManagement","buildingIsAvailable":false,"availableBuildingId":null}]}},"culturalPointsOverview":{"usedSlots":1,"maxControllableVillages":1,"cpProducedForNextSlot":573,"cpNeededForNextSlot":2000},"profileBan":{"isActive":false,"tooltip":""},"villageList":[{"id":33462,"name":"Dope#01","distance":0,"incomingAttacksAmount":0,"incomingAttacksSymbols":{"gray":0,"green":0,"red":0,"yellow":0},"x":-75,"y":-76}]}},
+                    viewData: {"bootstrapData":{"buildings":[{"type":1,"validTribes":[1,2,3,6,7]},{"type":2,"validTribes":[1,2,3,6,7]},{"type":3,"validTribes":[1,2,3,6,7]},{"type":4,"validTribes":[1,2,3,6,7]},{"type":5,"validTribes":[1,2,3,6,7]},{"type":6,"validTribes":[1,2,3,6,7]},{"type":7,"validTribes":[1,2,3,6,7]},{"type":8,"validTribes":[1,2,3,6,7]},{"type":9,"validTribes":[1,2,3,6,7]},{"type":10,"validTribes":[1,2,3,6,7]},{"type":11,"validTribes":[1,2,3,6,7]},{"type":13,"validTribes":[1,2,3,6,7]},{"type":14,"validTribes":[1,2,3,6,7]},{"type":15,"validTribes":[1,2,3,6,7]},{"type":16,"validTribes":[1,2,3,6,7]},{"type":17,"validTribes":[1,2,3,6,7]},{"type":18,"validTribes":[1,2,3,6,7]},{"type":19,"validTribes":[1,2,3,6,7]},{"type":20,"validTribes":[1,2,3,6,7]},{"type":21,"validTribes":[1,2,3,6,7]},{"type":22,"validTribes":[1,2,3,6,7]},{"type":23,"validTribes":[1,2,3,6,7]},{"type":24,"validTribes":[1,2,3,6,7]},{"type":25,"validTribes":[1,2,3,6,7]},{"type":26,"validTribes":[1,2,3,6,7]},{"type":27,"validTribes":[1,2,3,6,7]},{"type":28,"validTribes":[1,2,3,6,7]},{"type":29,"validTribes":[1,2,3,6,7]},{"type":30,"validTribes":[1,2,3,6,7]},{"type":31,"validTribes":[1]},{"type":32,"validTribes":[2]},{"type":33,"validTribes":[3]},{"type":34,"validTribes":[1,2,3,6,7]},{"type":35,"validTribes":[2]},{"type":36,"validTribes":[3]},{"type":37,"validTribes":[1,2,3,6,7]},{"type":38,"validTribes":[1,2,3,6,7]},{"type":39,"validTribes":[1,2,3,6,7]},{"type":40,"validTribes":[]},{"type":41,"validTribes":[1]},{"type":42,"validTribes":[6]},{"type":43,"validTribes":[7]},{"type":44,"validTribes":[7]},{"type":45,"validTribes":[6]},{"type":46,"validTribes":[1,2,3,6,7]}],"serverSupportedFeatures":{"keepVidOnConquer":false}},"ownPlayer":{"name":"DopaMeMe","tribeId":7,"isSitter":false,"goldFeatures":{"travianPlus":{"isActive":true},"goldClub":true},"village":{"id":33462,"tribeId":7,"name":"Dope#01","sortIndex":1,"population":92,"loyalty":100,"quickLinks":{"all":[{"type":"BlacksmithManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"RallyPointOverview","buildingIsAvailable":true,"availableBuildingId":16},{"type":"RallyPointSendTroops","buildingIsAvailable":true,"availableBuildingId":16},{"type":"RallyPointFarmList","buildingIsAvailable":true,"availableBuildingId":16},{"type":"MarketplaceSendResources","buildingIsAvailable":false,"availableBuildingId":null},{"type":"MarketplaceTradeRoutes","buildingIsAvailable":false,"availableBuildingId":null},{"type":"MarketplaceBuy","buildingIsAvailable":false,"availableBuildingId":null},{"type":"BarracksManagement","buildingIsAvailable":true,"availableBuildingId":19},{"type":"GreatBarracksManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"StableManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"GreatStableManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"WorkshopManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"TownHallCelebration","buildingIsAvailable":false,"availableBuildingId":null},{"type":"TrapperManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"HerosMansionManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"HospitalManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"ExpansionTrain","buildingIsAvailable":false,"availableBuildingId":null}],"villageListSet":[null,null,null,null],"villageSet":[null,{"type":"MarketplaceSendResources","buildingIsAvailable":false,"availableBuildingId":null},{"type":"BarracksManagement","buildingIsAvailable":true,"availableBuildingId":19},{"type":"StableManagement","buildingIsAvailable":false,"availableBuildingId":null},{"type":"WorkshopManagement","buildingIsAvailable":false,"availableBuildingId":null}]}},"culturalPointsOverview":{"usedSlots":1,"maxControllableVillages":1,"cpProducedForNextSlot":626,"cpNeededForNextSlot":2000},"profileBan":{"isActive":false,"tooltip":""},"villageList":[{"id":33462,"name":"Dope#01","distance":0,"incomingAttacksAmount":0,"incomingAttacksSymbols":{"gray":0,"green":0,"red":0,"yellow":0},"x":-75,"y":-76}]}},
                     knowledgeBaseLinkPlus: 'https://support.travian.com/support/solutions/articles/7000060367-travian-plus-membership'
                 },
                 {},
@@ -1179,7 +1176,7 @@
 	<div class="header">
 		<button id="questmasterButton"
         title="Display task list"
-        class="vid_7 "
+        class="vid_7 claimable"
         type="button">
 
             <svg width="174" height="126" viewBox="0 0 174 126">
@@ -1195,7 +1192,9 @@
     </defs>
 </svg>
     	<img class="mentor" alt="" src="/img/x.gif" />
-    </button>
+    <div class="bigSpeechBubble newQuestSpeechBubble" title="">
+	<img src="/img/x.gif" alt="" />
+</div></button>
 
 <script type="text/javascript">
     jQuery(function() {

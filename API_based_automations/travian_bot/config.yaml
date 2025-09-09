@@ -4,9 +4,9 @@ credentials:
   TRAVIAN_PASSWORD: Sjaaktrekhaak24
 cadence:
   # Minutes to wait between automation cycles (base cadence).
-  WAIT_BETWEEN_CYCLES_MINUTES: 3
+  WAIT_BETWEEN_CYCLES_MINUTES: 5
   # Extra random offset in minutes added/subtracted each cycle to avoid patterns.
-  JITTER_MINUTES: 10
+  JITTER_MINUTES: 5
   # Index of the game world in the lobby (0 = first entry shown in lobby).
   SERVER_SELECTION: 0
   # Probability (0..1) to skip an entire cycle (human-like idle).
@@ -32,7 +32,7 @@ limiter:
 logging:
   # Log verbosity and destination directory.
   # DEBUG | INFO | WARNING | ERROR | CRITICAL
-  LOG_LEVEL: INFO
+  LOG_LEVEL: DEBUG
   LOG_DIR: logs
 humanizer:
   # Per-request think-time and occasional longer breaks (seconds).
@@ -71,6 +71,12 @@ map_and_farms:
   FARM_LIST_RANDOM_SKIP_PROB: 0.15
 raiding:
   # Farm-list behavior and escort priority (t1..t10 for current tribe).
+  # Independent module toggles
+  EMPTY_OASIS_RAIDER_ENABLE: true
+  HERO_OASIS_CLEAR_ENABLE: true
+  FARM_LIST_RAIDER_ENABLE: true
+  # Prefer event-driven wake (sleep until next oasis due) over fixed cycle wait
+  OASIS_EVENT_DRIVEN_WAIT_ENABLE: true
   # If true, skip farm lists on the first cycle in Full Auto.
   SKIP_FARM_LISTS_FIRST_RUN: false
   ESCORT_UNIT_PRIORITY:
@@ -89,7 +95,7 @@ raiding:
 NEW_VILLAGE_PRESET_ENABLE: false
 learning:
   # Enable/disable adaptive multipliers from combat reports.
-  LEARNING_ENABLE: true
+  LEARNING_ENABLE: false
   # Per-oasis escort multiplier learning and thresholds.
   # Lower bound for per-oasis escort multiplier.
   LEARNING_MIN_MUL: 0.8
@@ -129,14 +135,16 @@ attack_detector:
 
 reports:
   # If false, the automated cycle will not process reports; use Tools menu to run manually.
-  PROCESS_REPORTS_IN_AUTOMATION: true
+  PROCESS_REPORTS_IN_AUTOMATION: false
   # Optional: minimal seconds to wait before attempting to read a report after sending.
   REPORT_MIN_WAIT_SEC: 60
   # Debug: log/dump report list pages to help diagnose matching issues.
-  REPORT_DEBUG_LOG: false
+  REPORT_DEBUG_LOG: true
   REPORT_DEBUG_DUMP: true
   # Skip scanning when navbar shows no unread reports (lighter & human-like)
   REPORT_USE_INDICATOR: true
+  # Cap the number of pending items handled per pass (0 = unlimited)
+  REPORT_MAX_ITEMS_PER_PASS: 10
 
 hero_adventures:
   # Automatically start hero adventures as soon as they appear.
