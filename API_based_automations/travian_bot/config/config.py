@@ -113,6 +113,8 @@ class Settings:
     # Credentials (optional; can be prompted interactively if empty)
     TRAVIAN_EMAIL: str = ""
     TRAVIAN_PASSWORD: str = ""
+    # Optional build header for JSON APIs (HAR shows X-Version required on some endpoints)
+    TRAVIAN_X_VERSION: str = ""
 
     # Humanizer (anti-bot cadence)
     HUMAN_MIN_DELAY: float = 0.6      # seconds, min think-time between requests
@@ -192,6 +194,7 @@ class Settings:
     OASIS_COOLDOWN_ON_LOST_SEC: int = 1800
     OASIS_EARLY_EXIT_IF_INSUFFICIENT: bool = True
     OASIS_MAX_INSUFFICIENT_SKIPS: int = 10
+    OASIS_ALWAYS_NEAREST_ONLY: bool = False
 
     def as_dict(self) -> dict:
         return {
@@ -217,6 +220,7 @@ class Settings:
             "LEARNING_STEP_DOWN_ON_LOW_LOSS": self.LEARNING_STEP_DOWN_ON_LOW_LOSS,
             "TRAVIAN_EMAIL": self.TRAVIAN_EMAIL,
             "TRAVIAN_PASSWORD": "***" if self.TRAVIAN_PASSWORD else "",
+            "TRAVIAN_X_VERSION": self.TRAVIAN_X_VERSION,
             "HUMAN_MIN_DELAY": self.HUMAN_MIN_DELAY,
             "HUMAN_MAX_DELAY": self.HUMAN_MAX_DELAY,
             "HUMAN_LONG_PAUSE_EVERY": self.HUMAN_LONG_PAUSE_EVERY,
@@ -274,6 +278,7 @@ class Settings:
             "OASIS_COOLDOWN_ON_LOST_SEC": self.OASIS_COOLDOWN_ON_LOST_SEC,
             "OASIS_EARLY_EXIT_IF_INSUFFICIENT": self.OASIS_EARLY_EXIT_IF_INSUFFICIENT,
             "OASIS_MAX_INSUFFICIENT_SKIPS": self.OASIS_MAX_INSUFFICIENT_SKIPS,
+            "OASIS_ALWAYS_NEAREST_ONLY": self.OASIS_ALWAYS_NEAREST_ONLY,
         }
 
 
@@ -329,6 +334,7 @@ def load_settings(env_prefix: str = "") -> Settings:
     # Credentials
     s.TRAVIAN_EMAIL = _as_str(g("TRAVIAN_EMAIL", s.TRAVIAN_EMAIL), s.TRAVIAN_EMAIL)
     s.TRAVIAN_PASSWORD = _as_str(g("TRAVIAN_PASSWORD", s.TRAVIAN_PASSWORD), s.TRAVIAN_PASSWORD)
+    s.TRAVIAN_X_VERSION = _as_str(g("TRAVIAN_X_VERSION", s.TRAVIAN_X_VERSION), s.TRAVIAN_X_VERSION)
 
     # Humanizer
     def _as_float(val, default: float) -> float:
@@ -410,6 +416,10 @@ def load_settings(env_prefix: str = "") -> Settings:
     s.OASIS_COOLDOWN_ON_LOST_SEC = _as_int(g("OASIS_COOLDOWN_ON_LOST_SEC", s.OASIS_COOLDOWN_ON_LOST_SEC), s.OASIS_COOLDOWN_ON_LOST_SEC)
     s.OASIS_EARLY_EXIT_IF_INSUFFICIENT = _as_bool(g("OASIS_EARLY_EXIT_IF_INSUFFICIENT", s.OASIS_EARLY_EXIT_IF_INSUFFICIENT), s.OASIS_EARLY_EXIT_IF_INSUFFICIENT)
     s.OASIS_MAX_INSUFFICIENT_SKIPS = _as_int(g("OASIS_MAX_INSUFFICIENT_SKIPS", s.OASIS_MAX_INSUFFICIENT_SKIPS), s.OASIS_MAX_INSUFFICIENT_SKIPS)
+    try:
+        s.OASIS_ALWAYS_NEAREST_ONLY = _as_bool(g("OASIS_ALWAYS_NEAREST_ONLY", s.OASIS_ALWAYS_NEAREST_ONLY), s.OASIS_ALWAYS_NEAREST_ONLY)
+    except Exception:
+        pass
     return s
 
 

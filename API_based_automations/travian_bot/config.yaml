@@ -2,6 +2,9 @@ credentials:
   # Credentials used for lobby login (kept locally; do not commit secrets to VCS).
   TRAVIAN_EMAIL: michaelsnijder@hotmail.com
   TRAVIAN_PASSWORD: Sjaaktrekhaak24
+  # Optional: Travian build header used by some JSON APIs (HAR: X-Version)
+  # Leave empty to omit; set to the value seen in your network tab, e.g., "228.4"
+  TRAVIAN_X_VERSION: ''
 cadence:
   # Minutes to wait between automation cycles (base cadence).
   WAIT_BETWEEN_CYCLES_MINUTES: 5
@@ -13,7 +16,7 @@ cadence:
   SKIP_CYCLE_PROB: 0.0
 limiter:
   # Enable a hard daily cap on total runtime (spread across blocks).
-  ENABLE_CYCLE_LIMITER: true
+  ENABLE_CYCLE_LIMITER: false
   # Maximum minutes per day the bot may be active.
   DAILY_MAX_RUNTIME_MINUTES: 600
   # Split the day into N blocks; sleeps between blocks to reduce bursts.
@@ -148,7 +151,7 @@ reports:
 
 hero_adventures:
   # Automatically start hero adventures as soon as they appear.
-  HERO_ADVENTURE_ENABLE: false
+  HERO_ADVENTURE_ENABLE: true
   # Minimal hero health percentage to allow adventures.
   HERO_ADVENTURE_MIN_HEALTH: 40
   # Skip adventures longer than this many minutes (0 = no limit).
@@ -161,7 +164,7 @@ hero_adventures:
 
 progressive_tasks:
   # Automatically collect progressive task rewards per village.
-  PROGRESSIVE_TASKS_ENABLE: true
+  PROGRESSIVE_TASKS_ENABLE: false
   # Refresh hero HUD after each collect (matches UI behavior).
   PROGRESSIVE_TASKS_REFRESH_HUD: true
 
@@ -176,6 +179,8 @@ oasis_scheduler:
   OASIS_EARLY_EXIT_IF_INSUFFICIENT: true
   # Cap the number of "Not enough ..." skips per cycle to reduce noise and requests.
   OASIS_MAX_INSUFFICIENT_SKIPS: 10
+  # If true, always pick the single nearest oasis and attack it on its own 10-min cadence.
+  OASIS_ALWAYS_NEAREST_ONLY: false
 
 building_guard:
   # Wait/retry building upgrades when resources are insufficient or queue is busy.

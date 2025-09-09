@@ -6,6 +6,7 @@ import json
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from identity_handling.login import login
+from core.travian_api import TravianAPI
 from identity_handling.faction_utils import get_faction_name
 
 def verify_faction(tribe_id: int) -> tuple[int, str]:
@@ -70,7 +71,12 @@ def fetch_villages_with_coordinates(session, server_url):
         """
     }
 
-    response = session.post(f"{server_url}/api/v1/graphql", json=payload)
+    api = TravianAPI(session, server_url)
+    response = session.post(
+        f"{server_url}/api/v1/graphql",
+        json=payload,
+        headers=api._headers_json_api("/dorf1.php"),
+    )
     response.raise_for_status()
 
     response_json = response.json()

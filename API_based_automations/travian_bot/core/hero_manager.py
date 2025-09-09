@@ -66,7 +66,10 @@ class HeroManager:
     def fetch_hero_status(self) -> Optional[HeroStatus]:
         """Fetch hero status from the HUD API endpoint."""
         try:
-            response = self.api.session.get(f"{self.api.server_url}/api/v1/hero/dataForHUD")
+            response = self.api.session.get(
+                f"{self.api.server_url}/api/v1/hero/dataForHUD",
+                headers=self.api._headers_ajax("/hero"),
+            )
             response.raise_for_status()
             data = response.json()
             

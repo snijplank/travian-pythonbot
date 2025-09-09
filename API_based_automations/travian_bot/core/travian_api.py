@@ -21,10 +21,13 @@ class TravianAPI:
             self._human_long_min = max(0.0, float(getattr(_cfg, 'HUMAN_LONG_PAUSE_MIN', 3.0)))
             self._human_long_max = max(self._human_long_min, float(getattr(_cfg, 'HUMAN_LONG_PAUSE_MAX', 6.0)))
             self._human_long_prob = max(0.0, min(1.0, float(getattr(_cfg, 'HUMAN_LONG_PAUSE_PROB', 0.12))))
+            # Optional build header for JSON endpoints observed in HAR
+            self._x_version = str(getattr(_cfg, 'TRAVIAN_X_VERSION', '') or '').strip()
         except Exception:
             self._human_min, self._human_max = 0.6, 2.2
             self._human_every, self._human_long_min, self._human_long_max = 7, 3.0, 6.0
             self._human_long_prob = 0.12
+            self._x_version = ''
         self._req_counter = 0
         # Set polite default headers if missing
         try:
@@ -52,6 +55,20 @@ class TravianAPI:
         try:
             self._human_request = _human_request  # type: ignore[attr-defined]
             self.session.request = self._human_request  # type: ignore
+        except Exception:
+            pass
+
+        # Ensure Travian X-Version header is present: use config override or auto-detect
+        try:
+            if self._x_version:
+                try:
+                    self.session.headers["X-Version"] = self._x_version
+                except Exception:
+                    pass
+            else:
+                v = self._detect_and_apply_x_version()
+                if v:
+                    self._x_version = v
         except Exception:
             pass
 
@@ -91,15 +108,68 @@ class TravianAPI:
                 }
             """
         }
-        response = self.session.post(f"{self.server_url}/api/v1/graphql", json=payload)
+        response = self.session.post(
+            f"{self.server_url}/api/v1/graphql",
+            json=payload,
+            headers=self._headers_json_api("/dorf1.php"),
+        )
         response.raise_for_status()
         return response.json()["data"]["ownPlayer"]
+
+    # --- X-Version detection from HTML ---
+    def _parse_versions_from_html(self, html: str) -> list[str]:
+        try:
+            versions: set[str] = set()
+            for m in re.finditer(r"gpack/(\d+\.\d+)/", html):
+                versions.add(m.group(1))
+            for m in re.finditer(r"/js/[A-Za-z\-/]+\.js\?(\d+\.\d+)", html):
+                versions.add(m.group(1))
+            return sorted(versions, key=lambda s: [int(p) for p in s.split('.')])
+        except Exception:
+            return []
+
+    def _detect_and_apply_x_version(self) -> str | None:
+        """Fetch a lightweight page and derive Travian build version (X-Version) from HTML.
+
+        Strategy:
+        - Check /dorf1.php; if not, try /hero/adventures, /tasks
+        - Look for gpack/<ver>/ and js?...<ver> patterns
+        Applies header globally on the session if found.
+        """
+        if getattr(self, "_x_version", ""):
+            # Already set (e.g., from config)
+            try:
+                self.session.headers["X-Version"] = self._x_version
+            except Exception:
+                pass
+            return self._x_version
+        pages = ["/dorf1.php", "/hero/adventures", "/tasks", "/dorf2.php"]
+        html = ""
+        for p in pages:
+            try:
+                r = self.session.get(f"{self.server_url.rstrip('/')}{p}")
+                if getattr(r, "ok", False):
+                    html = getattr(r, "text", "") or ""
+                    cand = self._parse_versions_from_html(html)
+                    if cand:
+                        ver = cand[-1]  # highest
+                        try:
+                            self.session.headers["X-Version"] = ver
+                        except Exception:
+                            pass
+                        return ver
+            except Exception:
+                continue
+        return None
 
     # --- Progressive Tasks & Rewards ---
     def get_hero_level(self) -> int | None:
         """Fetch hero level from HUD endpoint (fast JSON)."""
         try:
-            res = self.session.get(f"{self.server_url}/api/v1/hero/dataForHUD")
+            res = self.session.get(
+                f"{self.server_url}/api/v1/hero/dataForHUD",
+                headers=self._headers_ajax("/hero"),
+            )
             res.raise_for_status()
             j = res.json() or {}
             lvl = j.get("level")
@@ -110,7 +180,10 @@ class TravianAPI:
     def refresh_hero_hud(self) -> None:
         """Trigger a refresh of the HUD JSON (optional after collect)."""
         try:
-            _ = self.session.get(f"{self.server_url}/api/v1/hero/dataForHUD")
+            _ = self.session.get(
+                f"{self.server_url}/api/v1/hero/dataForHUD",
+                headers=self._headers_ajax("/hero"),
+            )
         except Exception:
             pass
 
@@ -119,6 +192,11 @@ class TravianAPI:
         try:
             vid = str(village_id)
             self.session.get(f"{self.server_url}/dorf1.php?newdid={vid}")
+            try:
+                # Track current village id for APIs that may require it (e.g., tasks in spawnVillage scope)
+                self._current_village_id = int(village_id)
+            except Exception:
+                self._current_village_id = None
         except Exception:
             pass
 
@@ -164,7 +242,18 @@ class TravianAPI:
                                     break
                             e += 1
                         blob = html[s:e]
-                        data = _json.loads(blob)
+                        # The first argument passed to React often uses unquoted top‑level keys
+                        # (tasksData, activeTab, heroData), which is valid JS but not strict JSON.
+                        # Quote those keys before json.loads to avoid parse errors while leaving
+                        # the already JSON‑like nested structures untouched.
+                        try:
+                            fixed = blob
+                            for _k in ("tasksData", "activeTab", "heroData"):
+                                fixed = re.sub(rf'([{{,]\s*){_k}\s*:', r'\1"' + _k + r'":', fixed)
+                            data = _json.loads(fixed)
+                        except Exception:
+                            # Fallback to original (in case the page already used strict JSON)
+                            data = _json.loads(blob)
                         tasksData = data.get("tasksData") or {}
                         # Merge generalTasks and activeVillageTasks
                         def _iter_tasks(td):
@@ -182,7 +271,10 @@ class TravianAPI:
                                     item = {
                                         "questType": qtype,
                                         "scope": scope,
+                                        # Some endpoints expect 'level' (ordinal) while UI shows 'levelValue'.
+                                        # Include both so the collector can try alternatives.
                                         "targetLevel": lvl.get("levelValue"),
+                                        "level": lvl.get("level"),
                                     }
                                     qid = lvl.get("questId")
                                     if qid:
@@ -268,26 +360,136 @@ class TravianAPI:
         Expected payload keys typically include:
           questType, scope, targetLevel, heroLevel, buildingId (optional)
         """
-        try:
-            # Respect site headers per HAR
-            headers = {
-                "X-Version": "228.4",
-                "X-Requested-With": "XMLHttpRequest",
-                "Content-Type": "application/json; charset=UTF-8",
-                "Accept": "application/json, text/plain, */*",
-            }
-            url = f"{self.server_url}/api/v1/progressive-tasks/collectReward"
-            res = self.session.post(url, json=payload, headers=headers)
-            res.raise_for_status()
-            return res.json()
-        except Exception as e:
-            logging.warning(f"[Tasks] collectReward failed for {payload}: {e}")
+        # Respect site headers per HAR (align strictly with browser)
+        from urllib.parse import urlsplit
+        parts = urlsplit(self.server_url)
+        origin = f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else self.server_url
+        headers = self._headers_json_api("/tasks?t=1")
+        url = f"{self.server_url.rstrip('/')}/api/v1/progressive-tasks/collectReward"
+
+        def _try_send(js: dict) -> dict | None:
             try:
-                Path("logs").mkdir(parents=True, exist_ok=True)
-                (Path("logs")/"collect_reward_error.txt").write_text(f"Payload: {payload}\nError: {e}\n", encoding="utf-8")
+                r = self.session.post(url, json=js, headers=headers)
+                r.raise_for_status()
+                return r.json()
+            except Exception as _e:
+                logging.warning(f"[Tasks] collectReward failed for {js}: {_e}")
+                try:
+                    Path("logs").mkdir(parents=True, exist_ok=True)
+                    body = None
+                    try:
+                        body = getattr(getattr(_e, 'response', None), 'text', None)
+                    except Exception:
+                        body = None
+                    (Path("logs")/"collect_reward_error.txt").write_text(
+                        f"Payload: {js}\nError: {_e}\nResponse: {body}\n", encoding="utf-8"
+                    )
+                except Exception:
+                    pass
+                return None
+
+        # Build a sequence of attempts. First: strict body exactly as observed in HAR
+        # { questType, scope, targetLevel, heroLevel, buildingId }
+        attempts: list[dict] = []
+        base = dict(payload)
+        # Derive questId from hints when absent (e.g., allResourceBuildingsHaveLevel_1_3)
+        try:
+            if not base.get("questId"):
+                _qt = base.get("questType")
+                _b = base.get("buildingId")
+                _lv = base.get("level") or base.get("targetLevel")
+                if _qt and _b is not None and _lv is not None:
+                    base["questId"] = f"{_qt}_{int(_b)}_{int(_lv)}"
+        except Exception:
+            pass
+        # If scope is village‑bound and we track it, add scopeVillageId hint
+        try:
+            if base.get("scope") and base.get("scope") != "account":
+                vid = getattr(self, "_current_village_id", None)
+                if isinstance(vid, int):
+                    # Do NOT include in the first strict attempt; only in fallbacks below
+                    pass
+        except Exception:
+            pass
+
+        # Fill hero level if missing
+        if "heroLevel" not in base or base.get("heroLevel") is None:
+            lvl = self.get_hero_level()
+            if lvl is not None:
+                base["heroLevel"] = int(lvl)
+
+        strict = {
+            k: base[k]
+            for k in ("questType", "scope", "targetLevel", "heroLevel", "buildingId")
+            if k in base and base[k] is not None
+        }
+        attempts.append(strict)
+
+        # Alt 1: use ordinal 'level' instead of 'targetLevel'
+        if base.get("level") is not None:
+            alt = {
+                k: base[k]
+                for k in ("questType", "scope", "level", "heroLevel", "buildingId")
+                if k in base and base[k] is not None
+            }
+            attempts.append(alt)
+
+        # Alt 2: minimal questId only
+        if base.get("questId"):
+            attempts.append({"questId": base["questId"]})
+            # questId + scopeVillageId
+            vid = getattr(self, "_current_village_id", None)
+            if isinstance(vid, int):
+                attempts.append({"questId": base["questId"], "scopeVillageId": vid})
+            # questId + questType/scope
+            attempts.append({k: base[k] for k in ("questId", "questType", "scope") if k in base})
+
+        # Alt 3: remove buildingId if present (server may infer it)
+        if base.get("buildingId") is not None:
+            alt = dict(base)
+            alt.pop("buildingId", None)
+            attempts.append(alt)
+
+        # Alt 4: add scopeVillageId to strict
+        vid = getattr(self, "_current_village_id", None)
+        if isinstance(vid, int):
+            alt = dict(strict)
+            alt["scopeVillageId"] = vid
+            attempts.append(alt)
+
+        # Deduplicate attempts while preserving order
+        seen = set()
+        uniq: list[dict] = []
+        for a in attempts:
+            key = tuple(sorted(a.items()))
+            if key in seen:
+                continue
+            seen.add(key)
+            uniq.append(a)
+
+        for js in uniq:
+            res = _try_send(js)
+            if res and (res.get("success") is True or res.get("status") in ("ok", True)):
+                return res
+            # Fallback: some servers accept PUT for questId-only variants
+            try:
+                if set(js.keys()) in ({"questId"}, {"questId", "scopeVillageId"}):
+                    r = self.session.put(url, json=js, headers=headers)
+                    if getattr(r, "ok", False):
+                        j = r.json() or {}
+                        if j and (j.get("success") is True or j.get("status") in ("ok", True)):
+                            return j
+                        # log body for diagnostics
+                        try:
+                            Path("logs").mkdir(parents=True, exist_ok=True)
+                            (Path("logs")/"collect_reward_error.txt").write_text(
+                                f"Payload(put): {js}\nStatus: {getattr(r,'status_code',None)}\nBody: {getattr(r,'text',None)}\n", encoding="utf-8"
+                            )
+                        except Exception:
+                            pass
             except Exception:
                 pass
-            return None
+        return None
 
     def get_village_farm_lists(self, village_id: int) -> list:
         """Get farm lists from the rally point page."""
@@ -309,7 +511,11 @@ class TravianAPI:
                 }
             """
         }
-        response = self.session.post(f"{self.server_url}/api/v1/graphql", json=payload)
+        response = self.session.post(
+            f"{self.server_url}/api/v1/graphql",
+            json=payload,
+            headers=self._headers_json_api("/dorf1.php"),
+        )
         response.raise_for_status()
         
         data = response.json()
@@ -351,7 +557,11 @@ class TravianAPI:
                 "onlyExpanded": False
             }
         }
-        response = self.session.post(f"{self.server_url}/api/v1/graphql", json=payload)
+        response = self.session.post(
+            f"{self.server_url}/api/v1/graphql",
+            json=payload,
+            headers=self._headers_json_api("/dorf1.php"),
+        )
         response.raise_for_status()
         return response.json()["data"]["farmList"]
 
@@ -367,7 +577,7 @@ class TravianAPI:
         """
         url = f"{self.server_url}/api/v1/map/tile-details"
         payload = {"x": x, "y": y}
-        response = self.session.post(url, json=payload)
+        response = self.session.post(url, json=payload, headers=self._headers_json_api("/karte.php"))
         response.raise_for_status()
         data = response.json()
         html = data.get("html")
@@ -416,11 +626,118 @@ class TravianAPI:
             "attack_power": attack_power
         }
 
+    # --- Low-level JSON endpoints: troop send ---
+    def _headers_ajax(self, referer_path: str | None = None) -> dict:
+        """Headers for AJAX/JSON GETs (no Content-Type).
+
+        Adds Accept, X-Requested-With, Origin, optional Referer, and X-Version.
+        """
+        from urllib.parse import urlsplit
+        parts = urlsplit(self.server_url)
+        origin = f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else self.server_url
+        h = {
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            "Origin": origin,
+        }
+        if referer_path:
+            if not referer_path.startswith("/"):
+                referer_path = "/" + referer_path
+            h["Referer"] = f"{self.server_url.rstrip('/')}{referer_path}"
+        if getattr(self, "_x_version", ""):
+            h["X-Version"] = self._x_version
+        return h
+    def _headers_json_api(self, referer_path: str | None = None) -> dict:
+        """Headers aligned with HAR-captured JSON calls.
+
+        Includes X-Requested-With and optional X-Version (from config if set).
+        """
+        from urllib.parse import urlsplit
+        parts = urlsplit(self.server_url)
+        origin = f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else self.server_url
+        h = {
+            "Content-Type": "application/json; charset=UTF-8",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            "Origin": origin,
+        }
+        if referer_path:
+            if not referer_path.startswith("/"):
+                referer_path = "/" + referer_path
+            h["Referer"] = f"{self.server_url.rstrip('/')}{referer_path}"
+        if getattr(self, "_x_version", ""):
+            h["X-Version"] = self._x_version
+        return h
+
+    def troops_send(self, payload: dict, method: str = "POST", referer_path: str | None = None) -> dict:
+        """Generic wrapper for /api/v1/troop/send.
+
+        - method: "POST" or "PUT" (both observed to work similarly)
+        - payload: dict, e.g. {"action":"troopsSend","targetMapId":110407,"eventType":50,"troops":[{"t11":1}]}
+        Returns parsed JSON (raises for HTTP errors). Caller may validate semantics.
+        """
+        url = f"{self.server_url.rstrip('/')}/api/v1/troop/send"
+        m = method.upper().strip()
+        res = self.session.request(m, url, json=payload, headers=self._headers_json_api(referer_path))
+        res.raise_for_status()
+        try:
+            return res.json() or {}
+        except Exception:
+            return {}
+
+    def send_hero_to_adventure(self, target_map_id: int, method: str = "POST") -> dict:
+        """Send the hero to an Adventure tile via JSON API.
+
+        Inputs
+        - target_map_id: adventure tile mapId
+        - method: POST or PUT
+
+        Returns
+        - { ok: bool, eta: int|None, start: int|None, arrive: int|None, coords: (x,y)|None, raw: dict }
+        """
+        body = {
+            "action": "troopsSend",
+            "targetMapId": int(target_map_id),
+            "eventType": 50,  # 50 = Adventure
+            "troops": [ { "t11": 1 } ],
+        }
+        j = self.troops_send(body, method=method, referer_path="/hero/adventures")
+
+        # Validation (best-effort): ensure hero only and correct eventType
+        ok = False
+        try:
+            troops = (j.get("troops") or [])
+            first = troops[0] if troops else {}
+            ok = (int(first.get("t11", 0)) == 1) and (int(first.get("eventType", 0)) == 50)
+        except Exception:
+            ok = False
+
+        # Extract timing and coordinates when available
+        eta = None
+        start = None
+        arrive = None
+        coords = None
+        try:
+            first = ((j.get("troops") or [None])[0]) or {}
+            eta = first.get("arrivalIn")
+            start = first.get("timeStart")
+            arrive = first.get("timeArrive")
+        except Exception:
+            pass
+        try:
+            t = j.get("target") or {}
+            c = t.get("coordinates") or {}
+            if "x" in c and "y" in c:
+                coords = (int(c["x"]), int(c["y"]))
+        except Exception:
+            pass
+        return {"ok": bool(ok), "eta": eta, "start": start, "arrive": arrive, "coords": coords, "raw": j}
+
     def get_oasis_animal_count(self, x: int, y: int) -> int:
         """Get total count of animals in an oasis."""
         url = f"{self.server_url}/api/v1/map/tile-details"
         payload = {"x": x, "y": y}
-        response = self.session.post(url, json=payload)
+        response = self.session.post(url, json=payload, headers=self._headers_json_api("/karte.php"))
         response.raise_for_status()
         data = response.json()
         html = data.get("html")
@@ -679,21 +996,52 @@ class TravianAPI:
             gql_map_id = adventure.get("gql_map_id") or adventure.get("id")
             if gql_map_id is not None:
                 import json as _json
+                gql_headers = self._headers_json_api("/hero/adventures")
                 mutations = [
-                    "mutation($mapId:Int!){ startAdventure(mapId:$mapId){ __typename } }",
-                    "mutation($mapId:Int!){ heroStartAdventure(mapId:$mapId){ __typename } }",
-                    "mutation($mapId:Int!){ startHeroAdventure(mapId:$mapId){ __typename } }",
+                    ("startAdventure",       "mutation($mapId:Int!){ startAdventure(mapId:$mapId){ __typename } }"),
+                    ("heroStartAdventure",   "mutation($mapId:Int!){ heroStartAdventure(mapId:$mapId){ __typename } }"),
+                    ("startHeroAdventure",   "mutation($mapId:Int!){ startHeroAdventure(mapId:$mapId){ __typename } }"),
                 ]
-                for q in mutations:
+                for op_name, q in mutations:
                     try:
-                        res = self.session.post(f"{self.server_url}/api/v1/graphql", json={"query": q, "variables": {"mapId": int(gql_map_id)}})
-                        if getattr(res, "ok", False):
+                        res = self.session.post(
+                            f"{self.server_url.rstrip('/')}/api/v1/graphql",
+                            json={"query": q, "variables": {"mapId": int(gql_map_id)}},
+                            headers=gql_headers,
+                        )
+                        if not getattr(res, "ok", False):
+                            continue
+                        j = {}
+                        try:
+                            j = res.json() or {}
+                        except Exception:
                             j = {}
+                        # Success if no errors and data contains a non-null field for this operation
+                        if j.get("errors"):
+                            continue
+                        data = j.get("data") or {}
+                        node = data.get(op_name)
+                        if node is not None:
+                            return True
+                    except Exception:
+                        continue
+
+                # REST-ish fallbacks observed in some variants
+                rest_paths = [
+                    "/api/v1/hero/startAdventure",
+                    "/api/v1/hero/adventures/start",
+                    "/api/v1/hero-adventures/start",
+                ]
+                rest_body = {"mapId": int(gql_map_id)}
+                for p in rest_paths:
+                    try:
+                        r = self.session.post(f"{self.server_url.rstrip('/')}{p}", json=rest_body, headers=gql_headers)
+                        if getattr(r, "ok", False):
                             try:
-                                j = res.json() or {}
+                                jj = r.json() or {}
                             except Exception:
-                                j = {}
-                            if not j.get("errors"):
+                                jj = {}
+                            if not jj.get("errors") and (jj.get("success") is True or jj.get("status") in ("ok", True) or jj.get("data")):
                                 return True
                     except Exception:
                         continue
@@ -709,7 +1057,12 @@ class TravianAPI:
 
             text = getattr(res, "text", "") or ""
             low = text.lower()
-            success = not any(k in low for k in ("error", "not enough", "insufficient", "health too low"))
+            # Be more conservative: look for explicit error markers; generic word 'error' appears in scripts
+            error_markers = (
+                "not enough", "insufficient", "health too low", "adventure not available",
+                "cannot start adventure", "already on adventure"
+            )
+            success = not any(k in low for k in error_markers)
             if not success:
                 raise Exception("Adventure start likely failed (page reported an error)")
             return True
@@ -717,8 +1070,20 @@ class TravianAPI:
             logging.error(f"[HeroAdv] Failed to start adventure: {e}")
             try:
                 Path("logs").mkdir(parents=True, exist_ok=True)
-                content = getattr(res, "text", None) if 'res' in locals() else None
-                (Path("logs")/"hero_adventure_start_error.html").write_text(content or "", encoding="utf-8")
+                content = None
+                if 'res' in locals():
+                    try:
+                        content = res.text
+                    except Exception:
+                        content = None
+                # Also dump any GraphQL error payload captured in variable 'j' or 'jj'
+                dump = ""
+                try:
+                    if content:
+                        dump = content
+                except Exception:
+                    dump = ""
+                (Path("logs")/"hero_adventure_start_error.html").write_text(dump or "", encoding="utf-8")
             except Exception:
                 pass
             return False
@@ -1152,7 +1517,11 @@ class TravianAPI:
             "query": query,
             "variables": variables or {}
         }
-        response = self.session.post(f"{self.server_url}/api/v1/graphql", json=payload)
+        response = self.session.post(
+            f"{self.server_url}/api/v1/graphql",
+            json=payload,
+            headers=self._headers_json_api("/build.php?gid=16&tt=99"),
+        )
         response.raise_for_status()
         return response.json()
 
@@ -1422,7 +1791,10 @@ class TravianAPI:
         """
         # 1) Try HUD JSON first (may not include attack on all servers)
         try:
-            res = self.session.get(f"{self.server_url}/api/v1/hero/dataForHUD")
+            res = self.session.get(
+                f"{self.server_url}/api/v1/hero/dataForHUD",
+                headers=self._headers_ajax("/hero"),
+            )
             res.raise_for_status()
             data = res.json() or {}
             for k in ("fightingStrength", "fightingstrength", "attack", "heroPower", "power"):
@@ -1523,7 +1895,11 @@ class TravianAPI:
             "action": "farmList",
             "lists": [{"id": list_id}]
         }
-        response = self.session.post(f"{self.server_url}/api/v1/farm-list/send", json=payload)
+        response = self.session.post(
+            f"{self.server_url}/api/v1/farm-list/send",
+            json=payload,
+            headers=self._headers_json_api("/build.php?gid=16&tt=99"),
+        )
         return response.status_code == 200
 
     def debug_tile_details(self, x: int, y: int):

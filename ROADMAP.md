@@ -23,6 +23,16 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
 - [x] Incidentele ‘map view’ (dorf1/dorf2) vóór cruciale acties
 - [x] “Coffee break” tussen cycles (kans + extra minuten)
 
+### 2.1 Idle Oasis Worker (drip-feed in blok-slaap)
+**Doel: rustig blijven tijdens blokken maar geen due-raids missen.**
+- [ ] Lichte achtergrondthread die enkel empty‑oasis raids verstuurt terwijl de main in block‑sleep is.
+- [ ] Nearest‑first selectie; 1 send per tick; stopt direct na eerste succesvolle send.
+- [ ] Respecteert per‑oase interval (≥10m), dieren‑skip, en cooldown na LOST; gebruikt bestaande scheduler/learning store.
+- [ ] Throttling & caps: `1 send / 8–12 min` met jitter; max K per block/uur; globale round‑robin over dorpen.
+- [ ] Filters: max afstand (bv. ≤ 12–15), alleen “safe baseline” targets (geen recente LOST of hoge verliesratio).
+- [ ] Config (YAML): `IDLE_RAID_ENABLE`, `IDLE_RAID_MAX_PER_HOUR`, `IDLE_RAID_INTERVAL_MIN_SEC`, `IDLE_RAID_JITTER_SEC`, `IDLE_RAID_MAX_DISTANCE`, `IDLE_RAID_REQUIRE_SAFE_BASELINE`, `BLOCK_ALLOW_IDLE_RAIDS`, `IDLE_RAID_GLOBAL_ROUND_ROBIN`.
+- [ ] Observability: duidelijke logs per tick; counters in metrics; optionele Discord‑melding voor raid_sent tijdens idle.
+
 ## 3️⃣ Raid-intelligentie & Learning
 **Doel: verliezen minimaliseren, escort slim aanpassen.**
 - [x] Learning loop: pending → report parse → multiplier nudge (configurable thresholds/steps)
@@ -69,6 +79,31 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
 - [ ] Discord/Telegram: notificaties (cycle done, errors, hero dood, raids klaar)
 - [ ] Optionele JSON logging naast human logs (grep/analyses)
 - [ ] Dashboard (Matplotlib of simpele web UI) voor trends (raids/dag, hero XP)
+
+### 5.2 Discord Webhook Logging (raid highlights)
+**Doel: alleen hoge‑signaal events naar Discord sturen; geen spam.**
+- [ ] Scope: push uitsluitend noemenswaardige regels, bv.
+  - ✅ Raid sent to (x, y) — Distance: Nt (incl. unitmix/aanvalsgrootte)
+  - 🚫 Skips met waarde: animals_present (eerste detectie of change), insufficient_troops (alleen wanneer bank geen enkele range meer kan bedienen), cooldown_applied (na LOST)
+  - 🦸 Hero: mission started (oasis x,y, distance, power, escort‑samenvatting), hero low health
+  - ⚠️ Errors met context (HTTP 4xx/5xx bij send/confirm) met throttling
+- [ ] Config (YAML):
+  - `DISCORD_LOG_ENABLE` (bool), `DISCORD_LOG_WEBHOOK` (url)
+  - `DISCORD_LOG_EVENTS` (lijst: raid_sent, animals_present, insufficient_troops, cooldown_applied, hero_sent, error)
+  - `DISCORD_LOG_THROTTLE_SEC` (minimale tijd tussen berichten), `DISCORD_LOG_COALESCE_WINDOW_SEC` (combineer vergelijkbare events)
+  - `DISCORD_LOG_MIN_LEVEL` (INFO/WARNING/ERROR)
+- [ ] Vormgeving:
+  - Compacte tekst, 1 regel per event; optioneel Discord embed bij ERROR/ALERT
+  - Coalesce: meerdere "raid_sent" binnen 60s → 1 samenvatting met teller en top‑targets
+- [ ] Dedupe & privacy:
+  - Per‑target/event‑type de‑dup binnen window; geen credentials/headers in payload
+  - Fail‑safe: netwerkfouten stil afvangen, nooit de hoofdloop blokkeren
+- [ ] Implementatie:
+  - Klein hulputil `core/notify.py` met back‑pressure en simpele in‑memory/JSON cache
+  - Hooks in oasis raider (raid_sent/skip), hero runner (hero_sent/health), error‑decorator rond API sends
+- [ ] Test/acceptatie:
+  - Dry‑run/mocked webhook; throttle en coalesce aantoonbaar
+  - Manuele check: voorbeeldbericht "✅ Raid sent to (-75, -73) — Distance: 3.0 tiles" komt door bij enabled events
 
 ## 5.1 🦸 Held‑automatisering (nieuw)
 **Doel: held efficiënt inzetten zonder risico.**
@@ -202,3 +237,11 @@ Doel: de Hero Raider onafhankelijk laten plannen/uitvoeren, zodat de main cycle 
 - Schema: Documenteer minimaal event‑types (raid_sent, raid_skip, hero_status, error, http_call).
 - CI: GitHub Actions draait lint + unit tests (mapping/parsers/token‑parser) bij push.
 - Fixtures: Kleine HTML fixtures voor parser‑tests (token/confirm, troops table).
+
+6) Idle Oasis Worker
+- Thread: Draait alleen tijdens block‑sleep; 1 raid per tick; nearest‑first; stopt na eerste succes.
+- Scheduler: Respecteert `OASIS_TARGET_INTERVAL_MIN_SEC` en cooldowns; gebruikt animals‑cache/validator.
+- Throttle: `IDLE_RAID_INTERVAL_MIN_SEC` + jitter; cap `IDLE_RAID_MAX_PER_HOUR` en per‑block cap.
+- Filters: `IDLE_RAID_MAX_DISTANCE`, `IDLE_RAID_REQUIRE_SAFE_BASELINE` true → slaat risicovolle targets over.
+- Config: YAML‑keys aanwezig en gedocumenteerd; default = uit.
+- Logs/Metrics: Heldere statusregels, sent/skip redenen, en counters zichtbaar; optioneel Discord event.

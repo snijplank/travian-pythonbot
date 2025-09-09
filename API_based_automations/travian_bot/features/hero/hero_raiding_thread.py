@@ -6,9 +6,7 @@ from core.hero_manager import HeroManager
 from core.database_helpers import load_latest_unoccupied_oases
 from core.hero_runner import try_send_hero_to_oasis
 from identity_handling.identity_helper import load_villages_from_identity
-
-# Create a lock for printing
-print_lock = threading.Lock()
+from core.console import CONSOLE_LOCK, print_line
 
 def _ts() -> str:
     try:
@@ -19,8 +17,8 @@ def _ts() -> str:
 
 def safe_print(message):
     """Thread-safe printing function with timestamp prefix for CLI output."""
-    with print_lock:
-        print(f"{_ts()} {message}")
+    # Use console.print_line to ensure a pending status/progress line is ended first
+    print_line(f"{_ts()} {message}")
 
 def run_hero_raiding_thread(api):
     """Background thread for adaptive hero raiding."""
@@ -163,42 +161,53 @@ def run_hero_raiding_thread(api):
                 time.sleep(wait_time)
                 continue
 
-            safe_print("[HeroOasisClear] Finding suitable oases...")
-            # Find suitable oases (using the latest logic from debug_hero_raiding.py)
-            suitable = []
-            for coord_key, oasis_data in oases.items():
-                x_str, y_str = coord_key.split("_")
-                oasis = {"x": int(x_str), "y": int(y_str)}
-                distance = abs(current_village['x'] - oasis['x']) + abs(current_village['y'] - oasis['y'])
-                if distance >= 20:
+            safe_print("[HeroOasisClear] Ordering candidates by distance (nearest first)…")
+            # Build nearest-first candidate list using stored distances; fallback to Euclidean if missing
+            def _euclid(ax, ay, bx, by):
+                try:
+                    return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
+                except Exception:
+                    return 9999.0
+            candidates = []
+            for coord_key, tile in (oases or {}).items():
+                try:
+                    x_str, y_str = coord_key.split("_")
+                    x_i, y_i = int(x_str), int(y_str)
+                except Exception:
                     continue
-                oasis_info = api.get_oasis_info(oasis["x"], oasis["y"])
-                if oasis_info["is_occupied"]:
-                    continue
-                animal_info = oasis_info["animals"]
-                power = oasis_info["attack_power"]
-                max_power = 2000
-                if distance < 3:
-                    max_power = 500
-                elif distance < 6:
-                    max_power = 1000
-                if 50 <= power <= max_power:
-                    liking_rating = sum(count for _, count in animal_info)
-                    efficiency = liking_rating / distance
-                    suitable.append((oasis, power, distance, liking_rating, efficiency))
-            suitable.sort(key=lambda x: x[4], reverse=True)
-
-            if not suitable:
-                safe_print("[HeroOasisClear] ❌ No suitable oases found (based on power and distance thresholds)")
-                wait_time = 300 + random.randint(-30, 30)
-                safe_print(f"[HeroOasisClear] Waiting {wait_time} seconds before retry...")
-                time.sleep(wait_time)
-                continue
+                d = tile.get("distance")
+                if not isinstance(d, (int, float)):
+                    d = _euclid(current_village['x'], current_village['y'], x_i, y_i)
+                candidates.append((d, {"x": x_i, "y": y_i}))
+            candidates = [c for c in candidates if c[0] < 20]
+            candidates.sort(key=lambda t: t[0])
+            # Log a short preview of nearest distances
+            try:
+                preview = ", ".join([f"({c[1]['x']},{c[1]['y']}) {c[0]:.1f}t" for c in candidates[:5]])
+                safe_print(f"[HeroOasisClear] Candidates (nearest): {preview}")
+            except Exception:
+                pass
 
             sent = False
-            # Try a few best candidates in order until one fits escort availability
-            for oasis, power, distance, liking, eff in suitable[:10]:
-                safe_print(f"[HeroOasisClear] Sending hero to oasis at ({oasis['x']}, {oasis['y']})")
+            for dist, oasis in candidates:
+                # Quick power-gate using live oasis info; also ensure unoccupied
+                try:
+                    info = api.get_oasis_info(oasis["x"], oasis["y"])
+                except Exception:
+                    continue
+                if info.get("is_occupied"):
+                    continue
+                power = info.get("attack_power", 0)
+                # Distance-gated max power
+                max_power = 2000
+                if dist < 3:
+                    max_power = 500
+                elif dist < 6:
+                    max_power = 1000
+                if not (50 <= int(power) <= int(max_power)):
+                    continue
+
+                safe_print(f"[HeroOasisClear] Trying nearest oasis at ({oasis['x']}, {oasis['y']}) — d={dist:.1f}t, power={power}…")
                 if try_send_hero_to_oasis(api, current_village, oasis):
                     safe_print(f"[HeroOasisClear] ✅ Hero sent to oasis at ({oasis['x']}, {oasis['y']})")
                     # Verify on rally point that hero is on mission; avoid false positives where only escort left
@@ -224,6 +233,7 @@ def run_hero_raiding_thread(api):
                     time.sleep(remain + random.randint(60, 120))
                     sent = True
                     break
+                # If send failed (incl. onvoldoende escorts), just fall back to next nearest automatically
             if not sent:
                 safe_print("[HeroOasisClear] ❌ Failed to send hero — no feasible oasis with current escorts.")
                 wait_time = 300 + random.randint(-30, 30)

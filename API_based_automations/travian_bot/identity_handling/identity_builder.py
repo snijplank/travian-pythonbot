@@ -1,6 +1,7 @@
 import os
 import json
 from identity_handling.faction_utils import get_faction_name
+from core.travian_api import TravianAPI
 
 # === LOCATION CONSTANTS ===
 DATABASE_FOLDER = os.path.join(os.path.dirname(__file__), "..", "database")
@@ -37,7 +38,13 @@ def fetch_villages_with_coordinates(session, server_url):
         """
     }
 
-    response = session.post(f"{server_url}/api/v1/graphql", json=payload)
+    # Use central header builder (includes X-Version detection)
+    api = TravianAPI(session, server_url)
+    response = session.post(
+        f"{server_url}/api/v1/graphql",
+        json=payload,
+        headers=api._headers_json_api("/dorf1.php"),
+    )
     response.raise_for_status()
 
     response_json = response.json()

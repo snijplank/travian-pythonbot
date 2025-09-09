@@ -16,21 +16,22 @@ STOP_MINUTE = 0
 
 # === FUNCTIONS ===
 def send_farm_list(api, list_id):
-    payload = {
-        "action": "farmList",
-        "lists": [{"id": list_id}]
-    }
     print(f"[{datetime.now().strftime('%H:%M:%S')}] 🛫 Sending farm list: {list_id}")
-    response = api.session.post(f"{api.server_url}/api/v1/farm-list/send", json=payload)
-
-    if response.status_code == 200:
-        print("✅ Farm list sent successfully.")
-        return True
-    elif response.status_code in (401, 403):
-        print("⚠️ Session expired! Need to re-login.")
-        return False
-    else:
-        print(f"❌ Error sending farm list: {response.status_code}", response.text)
+    try:
+        ok = api.send_farm_list(list_id)
+        if ok:
+            print("✅ Farm list sent successfully.")
+            return True
+        else:
+            print("❌ Farm list API returned non-200.")
+            return True  # keep scheduler moving
+    except Exception as e:
+        import requests
+        code = getattr(getattr(e, 'response', None), 'status_code', None)
+        if code in (401, 403):
+            print("⚠️ Session expired! Need to re-login.")
+            return False
+        print(f"❌ Error sending farm list: {e}")
         return True
 
 def calculate_next_delay(base_minutes):

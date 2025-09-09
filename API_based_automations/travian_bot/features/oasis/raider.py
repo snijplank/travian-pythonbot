@@ -63,9 +63,22 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
     max_raid_distance = raid_plan.get("max_raid_distance", float("inf"))
     distance_ranges = raid_plan.get("distance_ranges", [])
 
-    # Get village coordinates from the first oasis's parent folder name
-    village_coords = next(iter(oases.keys())).split("_")
-    village_x, village_y = int(village_coords[0]), int(village_coords[1])
+    # Resolve village coordinates from identity using provided village_id
+    try:
+        from identity_handling.identity_helper import load_villages_from_identity
+        _villages = load_villages_from_identity() or []
+        _match = next((v for v in _villages if str(v.get("village_id")) == str(village_id)), None)
+        if _match is not None:
+            village_x, village_y = int(_match.get("x")), int(_match.get("y"))
+        else:
+            # Fallback: best-effort derive from scan payload (pick nearest oasis and assume distances are relative)
+            first = next(iter(oases.keys()))
+            vx, vy = first.split("_")
+            village_x, village_y = int(vx), int(vy)
+    except Exception:
+        first = next(iter(oases.keys()))
+        vx, vy = first.split("_")
+        village_x, village_y = int(vx), int(vy)
     tribe_id = FACTION_TO_TRIBE.get(str(faction), 4)
     logging.info(f"Raid origin village at ({village_x}, {village_y})")
     logging.info(f"Maximum raid distance: {max_raid_distance} tiles")
@@ -179,8 +192,38 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
         else:
             due_val = float(last_sent + tgt_interval - now)
         sched.append((due_val, coords, dist))
-    # Sort by due first (overdue first), then by distance
-    sched.sort(key=lambda t: (t[0], t[2]))
+    # Optionally force focus on the nearest oasis only
+    try:
+        from config.config import settings as _sched_cfg  # type: ignore
+        always_nearest_only = bool(getattr(_sched_cfg, 'OASIS_ALWAYS_NEAREST_ONLY', False))
+    except Exception:
+        always_nearest_only = False
+
+    # In nearest-only mode, we now sort all due candidates by distance and
+    # fall back to the next one if the nearest gets skipped (e.g., animals present).
+    # We will still stop after the first successful send to preserve cadence semantics.
+    stop_after_first_success = False
+    if always_nearest_only:
+        due_candidates = [t for t in sched if (isinstance(t[0], (int, float)) and t[0] <= 0)]
+        due_candidates.sort(key=lambda t: (t[2]))  # nearest first
+        sched = due_candidates
+        try:
+            sample = ", ".join([f"{c} {d:.1f}t" for (_, c, d) in sched[:5]])
+            logging.info(f"[Oasis] Ordering due targets by distance (nearest first). Count={len(sched)}. Nearest: {sample}")
+        except Exception:
+            pass
+        stop_after_first_success = True
+    else:
+        # Keep only due or overdue items; order strictly by distance (nearest first),
+        # ignoring how long an oasis is overdue. This matches the desired behavior:
+        # always handle the shortest distance first among due targets.
+        sched = [t for t in sched if (isinstance(t[0], (int, float)) and t[0] <= 0)]
+        sched.sort(key=lambda t: t[2])
+        try:
+            sample = ", ".join([f"{c} {d:.1f}t" for (_, c, d) in sched[:5]])
+            logging.info(f"[Oasis] Ordering due targets by distance (nearest first). Count={len(sched)}. Nearest: {sample}")
+        except Exception:
+            pass
     ordered_targets = [(coords, oases[coords]) for _, coords, _ in sched]
 
     # Persist the earliest upcoming due time for a simple external countdown
@@ -391,6 +434,9 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
                 else:
                     troops_info[uc] = max(0, int(troops_info.get(uc, 0)) - int(au["adj_group"]))
             sent_raids += 1
+            if stop_after_first_success:
+                # In nearest-only mode, end the loop after the first successful send.
+                break
         else:
             logging.error(f"❌ Failed to send raid to ({x}, {y}) - Distance: {distance:.1f} tiles")
             add_skip("send_failed")

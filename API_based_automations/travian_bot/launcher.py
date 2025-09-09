@@ -676,6 +676,13 @@ def main():
         skip_farm_lists_first_run = bool(getattr(settings, "SKIP_FARM_LISTS_FIRST_RUN", False))
         # Reuse existing logged-in API and server_url from earlier login
 
+        # Initialize activity tracking session
+        try:
+            from core.metrics import activity_init
+            activity_init(time.time())
+        except Exception:
+            pass
+
         # Start hero raiding thread (non-blocking, defensive) only if enabled
         try:
             # Use the same robust reader for starting threads
@@ -983,7 +990,12 @@ def main():
 
                 # Cycle report (metrics snapshot)
                 try:
-                    from core.metrics import snapshot_and_reset
+                    from core.metrics import snapshot_and_reset, activity_record_window, render_activity_lines
+                    # Record this cycle's active window (exclude waiting time)
+                    try:
+                        activity_record_window(cycle_start_ts, time.time())
+                    except Exception:
+                        pass
                     snap = snapshot_and_reset()
                     ctr = snap.get("counters", {})
                     skips = snap.get("skip_reasons", {})
@@ -1004,6 +1016,12 @@ def main():
                             loss = ch.get("loss_pct")
                             loss_txt = f", loss={int(loss*100)}%" if isinstance(loss, float) else ""
                             print(f"    • {ch['oasis']}: {ch['old']:.2f} → {ch['new']:.2f} ({ch['dir']}{loss_txt})")
+                    # Activity lines
+                    try:
+                        for line in render_activity_lines():
+                            print(line)
+                    except Exception:
+                        pass
                     print()
                 except Exception:
                     pass
@@ -1083,11 +1101,20 @@ def main():
                     wait_total = min(base_wait_sec, max(15, event_wait_sec))
 
                 # Announce wait with optional event-driven hint
+                # Use global console lock to avoid interleaving with other threads' prints
+                try:
+                    from core.console import print_line as _print_line
+                except Exception:
+                    _print_line = None
                 if use_event and isinstance(event_wait_sec, int) and event_wait_sec > 0:
                     mm, ss = divmod(max(0, event_wait_sec), 60)
-                    print(f"[Main] Cycle complete. Waiting {max(0, wait_total//60)} minute(s)... (event-driven: next oasis in {mm:02d}:{ss:02d})", flush=True)
+                    msg = f"[Main] Cycle complete. Waiting {max(0, wait_total//60)} minute(s)... (event-driven: next oasis in {mm:02d}:{ss:02d})"
                 else:
-                    print(f"[Main] Cycle complete. Waiting {max(0, wait_total//60)} minute(s)...", flush=True)
+                    msg = f"[Main] Cycle complete. Waiting {max(0, wait_total//60)} minute(s)..."
+                if _print_line:
+                    _print_line(msg)
+                else:
+                    print(msg, flush=True)
                 _log_info(f"Cycle complete. Waiting {max(0, wait_total//60)} minute(s).")
 
                 # Progress bar countdown for next cycle (and show next oasis ETA when available)
@@ -1139,7 +1166,14 @@ def main():
                         out = _render_bar("Next cycle", remain, wait_total)
                     if is_tty:
                         if out != last_line:
-                            print("\r" + out, end="", flush=True)
+                            try:
+                                from core.console import print_status as _print_status
+                            except Exception:
+                                _print_status = None
+                            if _print_status:
+                                _print_status(out)
+                            else:
+                                print("\r" + out, end="", flush=True)
                             last_line = out
                     else:
                         # Non‑TTY: print a timestamped line every few seconds so it shows up in logs
@@ -1148,7 +1182,14 @@ def main():
                             _log_info(out)
                     time.sleep(1)
                 if is_tty and last_line:
-                    print()  # newline after progress bar
+                    try:
+                        from core.console import end_status as _end_status
+                    except Exception:
+                        _end_status = None
+                    if _end_status:
+                        _end_status()
+                    else:
+                        print()
 
             except Exception as e:
                 print(f"[Main] ⚠️ Error during cycle: {e}")

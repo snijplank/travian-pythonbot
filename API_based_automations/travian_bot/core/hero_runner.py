@@ -33,7 +33,10 @@ def try_send_hero_to_oasis(api, village, oasis, min_power=50, max_power=2000, he
     def _hero_available_here() -> bool:
         try:
             import re as _re
-            res = api.session.get(f"{api.server_url}/api/v1/hero/dataForHUD")
+            res = api.session.get(
+                f"{api.server_url}/api/v1/hero/dataForHUD",
+                headers=api._headers_ajax("/hero"),
+            )
             res.raise_for_status()
             j = res.json() or {}
             # hero must be alive and not on a mission
@@ -76,7 +79,9 @@ def try_send_hero_to_oasis(api, village, oasis, min_power=50, max_power=2000, he
     logging.debug(f"Checking oasis at ({oasis['x']}, {oasis['y']}) → Power: {power}, Distance: {distance}")
     
     if power > max_power or power < min_power:
-        logging.info(f"⚠️ Skipping oasis at ({oasis['x']},{oasis['y']}) — Power {power} outside range {min_power}-{max_power}")
+        logging.info(
+            f"⚠️ Skipping oasis at ({oasis['x']},{oasis['y']}) — Power {power} outside range {min_power}-{max_power} — Distance: {distance}"
+        )
         return False
 
     # Determine tribe_id from identity (fallback to 4=Huns if missing)
@@ -160,7 +165,9 @@ def try_send_hero_to_oasis(api, village, oasis, min_power=50, max_power=2000, he
 
     if help:
         if not escort_unit:
-            logging.info("[HeroRaider] ❌ Hero raid skipped — geen escort beschikbaar (all zero).")
+            logging.info(
+                f"[HeroRaider] ❌ Hero raid skipped — geen escort beschikbaar (all zero). — Distance: {distance}, Power: {power}"
+            )
             return False
         # 2) Recompute unit attack and recommendation for the chosen unit
         unit_atk = get_unit_attack(tribe_id, escort_unit)
@@ -169,7 +176,7 @@ def try_send_hero_to_oasis(api, village, oasis, min_power=50, max_power=2000, he
         available_count = int(available_by_t.get(escort_unit, 0))
         if available_count < recommended:
             logging.info(
-                f"[HeroRaider] ❌ Hero raid skipped — onvoldoende escorts: nodig={recommended}, beschikbaar={available_count}."
+                f"[HeroRaider] ❌ Hero raid skipped — onvoldoende escorts: nodig={recommended}, beschikbaar={available_count}. — Distance: {distance}, Power: {power}"
             )
             return False
         escort_count = int(recommended)

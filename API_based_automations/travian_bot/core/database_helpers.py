@@ -32,15 +32,23 @@ def load_latest_unoccupied_oases(village_coords):
     try:
         with open(latest_file, "r", encoding="utf-8") as f:
             oases = json.load(f)
-            
+
             # Extract village coordinates from the folder name
             village_x, village_y = map(int, village_coords.strip("()").split("_"))
-            
+
+            # Guard: never include the origin village tile itself as a raid target
+            origin_key = f"{village_x}_{village_y}"
+            if origin_key in oases:
+                try:
+                    del oases[origin_key]
+                except Exception:
+                    pass
+
             # Add distance to each oasis
             for coords, oasis in oases.items():
                 oasis_x, oasis_y = map(int, coords.split("_"))
                 oasis["distance"] = calculate_distance(village_x, village_y, oasis_x, oasis_y)
-                
+
             return oases
     except (json.JSONDecodeError, FileNotFoundError) as e:
         print(f"[❌] Error loading unoccupied oases: {e}")
