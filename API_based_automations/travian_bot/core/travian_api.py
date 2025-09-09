@@ -736,7 +736,8 @@ class TravianAPI:
                     continue
                 if key.startswith("t") and key[1:].isdigit():
                     n = int(key[1:])
-                    if 1 <= n <= 10:
+                    # Accept local troop slots t1..t10 and hero slot t11 as-is
+                    if 1 <= n <= 11:
                         normalized[f"t{n}"] = value
                     continue
                 if key.startswith("u") and key[1:].isdigit():
@@ -852,7 +853,8 @@ class TravianAPI:
                     continue
                 if key.startswith("t") and key[1:].isdigit():
                     n = int(key[1:])
-                    if 1 <= n <= 10:
+                    # Accept local troop slots t1..t10 and hero slot t11 as-is
+                    if 1 <= n <= 11:
                         normalized[f"t{n}"] = value
                     continue
                 if key.startswith("u") and key[1:].isdigit():
