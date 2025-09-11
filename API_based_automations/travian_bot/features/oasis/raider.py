@@ -24,6 +24,20 @@ def get_units_for_distance(distance, distance_ranges):
             return range_data["units"]
     return None
 
+# Helper: get index of the range that contains a given distance
+# Used to decide promotion to the *next* range only when the current target distance
+# actually lies within that next range (keeps 0–10 Mercs-only)
+
+def get_range_index_for_distance(distance, distance_ranges):
+    """Return the index of the first range that contains the distance, else -1."""
+    for i, range_data in enumerate(distance_ranges):
+        try:
+            if float(range_data.get("start", 0)) <= float(distance) < float(range_data.get("end", float("inf"))):
+                return i
+        except Exception:
+            continue
+    return -1
+
 def _append_pending(target_key: str, unit_code: str, recommended: int, sent: int) -> None:
     path = Path("database/learning/pending.json")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -192,6 +206,9 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
         else:
             due_val = float(last_sent + tgt_interval - now)
         sched.append((due_val, coords, dist))
+    # Snapshot full schedule BEFORE filtering (used to persist next upcoming due time)
+    sched_all = list(sched)
+
     # Optionally force focus on the nearest oasis only
     try:
         from config.config import settings as _sched_cfg  # type: ignore
@@ -224,13 +241,58 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
             logging.info(f"[Oasis] Ordering due targets by distance (nearest first). Count={len(sched)}. Nearest: {sample}")
         except Exception:
             pass
+
+        # === PATCH: filter due targets op ranges die haalbaar zijn met huidige troepen ===
+        def _range_satisfiable(dr: dict, bank: dict, tribe_id: int) -> bool:
+            try:
+                for u in (dr.get("units") or []):
+                    uc = str(u.get("unit_code"))
+                    need = int(u.get("group_size", 0))
+                    if need <= 0:
+                        continue
+                    from core.unit_catalog import t_to_u, u_to_t
+                    uc_local = u_to_t(uc) or uc  # accepteer zowel uNN als tX codes
+                    key_u = t_to_u(tribe_id, uc_local)
+                    have = int(bank.get(key_u, bank.get(uc, 0)) or 0)
+                    if have < need:
+                        return False
+                return True
+            except Exception:
+                return False
+
+        satisfiable_ranges = []
+        for dr in (distance_ranges or []):
+            if _range_satisfiable(dr, troops_info, tribe_id):
+                satisfiable_ranges.append((float(dr.get("start", 0)), float(dr.get("end", 0))))
+
+        if satisfiable_ranges:
+            try:
+                _parts = []
+                for (s, e) in satisfiable_ranges:
+                    if e == float("inf"):
+                        _parts.append(f"{s:.0f}+")
+                    else:
+                        _parts.append(f"{s:.0f}–{e:.0f}")
+                logging.info(f"[Oasis] Ranges satisfiable with current troop bank: {', '.join(_parts)}")
+            except Exception:
+                pass
+            before = len(sched)
+            sched = [t for t in sched if any(s <= float(t[2]) < e for (s, e) in satisfiable_ranges)]
+            after = len(sched)
+            logging.info(f"[Oasis] Filtered due targets by satisfiable ranges: {before} → {after}")
+        else:
+            logging.info("[Oasis] No ranges satisfiable with current troop bank.")
+        # === END PATCH
+
     ordered_targets = [(coords, oases[coords]) for _, coords, _ in sched]
 
     # Persist the earliest upcoming due time for a simple external countdown
     try:
         import time as _t
         from pathlib import Path as _P
-        upcoming = [max(0.0, float(d)) for (d, _, _) in sched if isinstance(d, (int, float))]
+        # Use the full, unfiltered schedule to compute the NEXT due time (>0 only),
+        # so that even when some are due now (<=0) we still expose the upcoming future due.
+        upcoming = [float(d) for (d, _, _) in sched_all if isinstance(d, (int, float)) and float(d) > 0.0]
         next_due_sec = min(upcoming) if upcoming else 0.0
         payload = {
             "village": {"x": village_x, "y": village_y, "id": village_id},
@@ -362,16 +424,66 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
                 add_skip("insufficient_troops")
                 break
         if not can_raid:
-            insufficient_skips += 1
-            # Dynamic early-exit: if the remaining troop bank cannot satisfy any defined range, stop immediately
-            if early_exit_on_insufficient and not _can_satisfy_any_range_with_bank(troops_info):
-                logging.info("[Oasis] No viable unit combo with remaining troops; ending oasis loop early.")
-                break
-            # Otherwise, respect configured cap to avoid long streaks of insufficient checks
-            if insufficient_cap > 0 and insufficient_skips >= insufficient_cap:
-                logging.info(f"[Oasis] Reached insufficient skip cap ({insufficient_cap}); breaking oasis loop.")
-                break
-            continue
+            # Optionally promote to the next distance range, but ONLY if this target's
+            # distance actually lies within that next range. Keeps ranges intact:
+            # 0–10 stays Mercs-only; for <10 we never send Steppe.
+            try:
+                enable_promote = bool(getattr(_cfg, 'OASIS_PROMOTE_TO_NEXT_RANGE', True))
+            except Exception:
+                enable_promote = True
+
+            promoted_used = False
+            if enable_promote and distance_ranges:
+                idx = get_range_index_for_distance(distance, distance_ranges)
+                if idx >= 0:
+                    for next_idx in range(idx + 1, len(distance_ranges)):
+                        next_range = distance_ranges[next_idx]
+                        try:
+                            nr_start = float(next_range.get('start', 0))
+                            nr_end = float(next_range.get('end', float('inf')))
+                        except Exception:
+                            nr_start, nr_end = 0.0, float('inf')
+                        if not (nr_start <= float(distance) < nr_end):
+                            continue  # target not in next range; do not promote for this target
+                        next_units = next_range.get('units') or []
+                        if not next_units:
+                            continue
+                        # Build adjusted units for the next range using the same multiplier
+                        next_adjusted = []
+                        for u in next_units:
+                            base_g = int(u.get('group_size', 0))
+                            adj_g = int(round(base_g * mul)) if base_g > 0 else 0
+                            if base_g > 0 and adj_g <= 0:
+                                adj_g = 1
+                            next_adjusted.append({"unit_code": u['unit_code'], "base_group": base_g, "adj_group": adj_g})
+                        # Check availability for promotion composition
+                        can_promote = True
+                        for au in next_adjusted:
+                            uc = str(au['unit_code'])
+                            uc_local = u_to_t(uc) or uc
+                            key_u = t_to_u(tribe_id, uc_local)
+                            need = int(au['adj_group'])
+                            have = int(troops_info.get(key_u, troops_info.get(uc, 0)))
+                            if need > have:
+                                can_promote = False
+                                break
+                        if can_promote:
+                            logging.info(f"[Promote] Current range insufficient → switching to next range {next_range.get('start')}-{next_range.get('end')} for distance {distance:.1f} (e.g., Steppe if defined).")
+                            adjusted_units = next_adjusted
+                            units = next_units
+                            promoted_used = True
+                            break
+            if not promoted_used:
+                insufficient_skips += 1
+                # Dynamic early-exit: if the remaining troop bank cannot satisfy any defined range, stop immediately
+                if early_exit_on_insufficient and not _can_satisfy_any_range_with_bank(troops_info):
+                    logging.info("[Oasis] No viable unit combo with remaining troops; ending oasis loop early.")
+                    break
+                # Respect configured cap to avoid long streaks of insufficient checks
+                if insufficient_cap > 0 and insufficient_skips >= insufficient_cap:
+                    logging.info(f"[Oasis] Reached insufficient skip cap ({insufficient_cap}); breaking oasis loop.")
+                    break
+                continue
 
         # Validate oasis is raidable
         ok, why = is_valid_unoccupied_oasis(api, x, y, distance)
