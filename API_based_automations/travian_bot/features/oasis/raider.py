@@ -1,8 +1,9 @@
 import logging
-import json, time
+import time
 from random import uniform
 from features.oasis.validator import is_valid_unoccupied_oasis
 from core.learning_store import LearningStore
+from core.rally_tracker import enqueue_pending_raid
 try:
     from config.config import settings as _cfg
 except Exception:
@@ -11,7 +12,6 @@ except Exception:
     _cfg = _CfgFallback()
 from core.metrics import add_sent, add_skip
 from core.unit_catalog import FACTION_TO_TRIBE, resolve_label_t, t_to_u, u_to_t
-from pathlib import Path
 
 def resolve_unit_name(tribe_id: int, unit_code: str) -> str:
     # Use central catalog label with local slot code
@@ -37,28 +37,6 @@ def get_range_index_for_distance(distance, distance_ranges):
         except Exception:
             continue
     return -1
-
-def _append_pending(target_key: str, unit_code: str, recommended: int, sent: int) -> None:
-    path = Path("database/learning/pending.json")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
-    except Exception:
-        data = []
-    entry = {
-        # Generic key for downstream processing; keep legacy 'oasis' for back-compat
-        "target": target_key,           # "(x,y)"
-        "oasis": target_key,            # legacy field; remove in a future cleanup
-        "ts_sent": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "unit": unit_code,
-        "recommended": int(recommended),
-        "sent": int(sent),
-        "_epoch": time.time(),
-    }
-    data.append(entry)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-    tmp.replace(path)
 
 def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=False, hero_available=False):
     """
@@ -512,6 +490,8 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
             # Conservative: do not mutate local troop bank on failure
             time.sleep(uniform(0.3, 0.8))
             continue
+        travel_time_sec = attack_info.get("travel_time_sec") if isinstance(attack_info, dict) else None
+        depart_epoch = time.time()
         try:
             success = api.confirm_oasis_attack(attack_info, x, y, raid_setup, village_id)
         except Exception as e:
@@ -530,13 +510,26 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
                 pass
             # Log één pending entry voor deze raid zodat de report checker de multiplier kan bijstellen.
             # Omdat we hier een combinatie van units sturen, labelen we dit als 'mixed'.
+            adj_total = sum(int(a["adj_group"]) for a in adjusted_units)
             if use_learning:
                 try:
-                    adj_total = sum(int(a["adj_group"]) for a in adjusted_units)
-                    _append_pending(key, "mixed", recommended=int(base_total), sent=int(adj_total))
-                except Exception:
-                    # Logging naar pending is niet kritisch voor het versturen; fouten hier mogen geen crash veroorzaken.
-                    pass
+                    sent_units: dict[str, int] = {}
+                    for au in adjusted_units:
+                        uc = str(au["unit_code"])
+                        local_code = u_to_t(uc) or uc
+                        global_code = t_to_u(tribe_id, local_code)
+                        sent_units[global_code] = sent_units.get(global_code, 0) + int(au["adj_group"])
+                    enqueue_pending_raid(
+                        village_id=village_id,
+                        target=key,
+                        recommended=int(base_total),
+                        sent_total=int(adj_total),
+                        sent_units=sent_units,
+                        depart_epoch=depart_epoch,
+                        travel_time_sec=float(travel_time_sec) if travel_time_sec else None,
+                    )
+                except Exception as exc:
+                    logging.debug(f"[Learning] Failed to queue rally tracker pending for {key}: {exc}")
             # Update available troops
             for au in adjusted_units:
                 uc = au["unit_code"]

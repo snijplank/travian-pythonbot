@@ -39,12 +39,12 @@ Automated farming, oasis raiding, and hero operations for Travian Legends with a
   - Optional HUD refresh after each collect
   - Toggle: `progressive_tasks.PROGRESSIVE_TASKS_ENABLE`, `progressive_tasks.PROGRESSIVE_TASKS_REFRESH_HUD`
 
-- **Report Reading + Learning (Toggleable) — UPDATED**
-  - Scrapes `/report` overview and normalizes both absolute and relative links
-  - Fetches detail pages and derives result/loss% to adjust escort multiplier per oasis
-  - Cycle status now prints succinct reports status (processed/skipped/no pendings)
+- **Rally Tracker Learning (Toggleable) — UPDATED**
+  - Queues each raid launch and parses `build.php?gid=16&tt=1` to read actual returns (bounty + surviving escorts)
+  - Multipliers are nudged immediately when a return matches (or when a raid times out without returning)
+  - Cycle status prints succinct rally-tracker status (`processed`, `no pendings`, ...)
   - Global toggle to disable learning entirely: `learning.LEARNING_ENABLE`
-  - When disabled: no pendings written, ReportChecker disabled, multiplier fixed at 1.0
+  - When disabled: no pendings written and multipliers remain fixed at 1.0
 
 - **Hero Adventures — UPDATED**
   - Background thread auto-starts adventures when available (configurable)
@@ -173,16 +173,14 @@ All runtime configuration is read from `API_based_automations/travian_bot/config
 - If Travian introduces a new tribe, update the mapping table and rerun `setup_identity.py`.
 
 - Reports
-  - `PROCESS_REPORTS_IN_AUTOMATION`: `true|false`
-  - `REPORT_MIN_WAIT_SEC`: seconds to wait before reading a report after a send
-  - `REPORT_USE_INDICATOR`: use navbar unread indicator to skip heavy scans when zero
+  - `PROCESS_RALLY_RETURNS`: toggle the rally tracker pass each cycle
 
-## Learning Loop & Reporting
+## Learning Loop (Rally Overview)
 
-- After a successful raid the bot writes a pending to `database/learning/pending.json` (when `LEARNING_ENABLE: true`).
-- The Report Checker waits `REPORT_MIN_WAIT_SEC`, finds the latest matching report, and nudges the multiplier based on result/loss%.
-- Next raids to the same oasis apply the updated multiplier to escort sizes.
-- When `LEARNING_ENABLE: false`, no pendings are written and the ReportChecker is skipped; multiplier remains 1.0.
+- After each raid the bot queues a pending entry in `database/learning/pending_rally.json` (when `LEARNING_ENABLE: true`).
+- The rally tracker polls `build.php?gid=16&tt=1` per village, matches returning raids by target + arrival time, and adjusts the multiplier using the actual bounty and surviving escorts.
+- Expected return timestamps are derived from the launch timestamp + travel duration (captured during the send step). If a raid never returns before `RALLY_RETURN_TIMEOUT_SEC`, it is treated as a full loss. Partial losses are inferred from the difference between sent vs. returning troops.
+- When `LEARNING_ENABLE: false`, no pendings are queued and multipliers remain fixed at 1.0.
 
 Per‑cycle report (printed by the launcher):
 - Raids sent/skipped + skip reasons summary
@@ -194,8 +192,8 @@ Cycle header status (human‑readable)
 - Unread reports count, task rewards available, adventure count
 - Example: `[Main] 📬 Unread reports: 3 | 🎁 Task rewards: 2 | 🗺️ Adventures: 1`
 
-Report processing status (per cycle)
-- Example: `[Main] 📨 Reports: processed 1` or `no pendings` or `skipped (no unread)`
+Rally processing status (per cycle)
+- Example: `[Main] 📨 Rally tracker: processed 1` or `no pendings`
 
 ## Attack Detector (OCR → Discord)
 
@@ -227,7 +225,7 @@ Notes:
 - Map scans: `database/full_map_scans/`
 - Unoccupied oases: `database/unoccupied_oases/`
 - Learning store: `database/learning/oasis_stats.json`
-- Learning pendings: `database/learning/pending.json`
+- Learning pendings: `database/learning/pending_rally.json`
 - Metrics: `database/metrics.json`
 
 ## Crontab Examples

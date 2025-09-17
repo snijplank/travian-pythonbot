@@ -109,7 +109,7 @@ raiding:
 # Enable autoplan for building a new village following a standard preset.
 NEW_VILLAGE_PRESET_ENABLE: false
 learning:
-  # Enable/disable adaptive multipliers from combat reports.
+  # Enable/disable adaptive multipliers based on rally overview feedback.
   LEARNING_ENABLE: false
   # Per-oasis escort multiplier learning and thresholds.
   # Lower bound for per-oasis escort multiplier.
@@ -123,6 +123,10 @@ learning:
   LEARNING_STEP_UP_ON_LOST: 0.25
   LEARNING_STEP_UP_ON_HIGH_LOSS: 0.1
   LEARNING_STEP_DOWN_ON_LOW_LOSS: 0.1
+  PROCESS_RALLY_RETURNS: true
+  # Rally overview based learning (matching tolerance + timeout)
+  RALLY_MATCH_TOLERANCE_SEC: 120
+  RALLY_RETURN_TIMEOUT_SEC: 900
 
 attack_detector:
   # OCR-based incoming-attack detector (Discord webhook notifications).
@@ -147,19 +151,6 @@ attack_detector:
   ATTACK_DETECTOR_USE_HOTKEYS: false
   # Examples: f5, ctrl+r, command+r
   ATTACK_DETECTOR_REFRESH_COMBO: ''
-
-reports:
-  # If false, the automated cycle will not process reports; use Tools menu to run manually.
-  PROCESS_REPORTS_IN_AUTOMATION: false
-  # Optional: minimal seconds to wait before attempting to read a report after sending.
-  REPORT_MIN_WAIT_SEC: 60
-  # Debug: log/dump report list pages to help diagnose matching issues.
-  REPORT_DEBUG_LOG: true
-  REPORT_DEBUG_DUMP: true
-  # Skip scanning when navbar shows no unread reports (lighter & human-like)
-  REPORT_USE_INDICATOR: true
-  # Cap the number of pending items handled per pass (0 = unlimited)
-  REPORT_MAX_ITEMS_PER_PASS: 10
 
 hero_adventures:
   # Automatically start hero adventures as soon as they appear.

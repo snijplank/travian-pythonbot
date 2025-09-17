@@ -1303,6 +1303,7 @@ class TravianAPI:
         troop_preparation_res.raise_for_status()
 
         soup = BeautifulSoup(troop_preparation_res.text, "html.parser")
+        travel_time_sec = self._extract_duration_seconds(troop_preparation_res, soup)
 
         # Accept multiple possible hidden token names across Travian variants
         token_input = soup.select_one('input[name="action"], input[name="a"], input[name="k"], input[name="c"]')
@@ -1351,6 +1352,7 @@ class TravianAPI:
             "action_field": action_field,
             "action": action,
             "checksum": checksum,
+            "travel_time_sec": travel_time_sec,
         }
 
     def confirm_oasis_attack(self, attack_info: dict, x: int, y: int, troops: dict, village_id: int) -> bool:
@@ -1441,6 +1443,50 @@ class TravianAPI:
                 logging.error(f"Verzenden mislukt. Mogelijke reden: {page_errors[0]}")
         return ok
 
+    def _extract_duration_seconds(self, response, soup: Optional[BeautifulSoup] = None) -> Optional[float]:
+        """Extract travel duration in seconds from the rally confirmation page."""
+        try:
+            html = getattr(response, "text", "") or ""
+            if soup is None:
+                soup = BeautifulSoup(html, "html.parser")
+
+            # Preferred: row with Duration label and timer value attribute
+            for th in soup.find_all("th"):
+                label = th.get_text(strip=True)
+                if not label:
+                    continue
+                if "duration" in label.lower():
+                    row = th.parent
+                    timer = row.find("span", attrs={"class": "timer"}) if row else None
+                    if timer and timer.has_attr("value"):
+                        return float(timer["value"])
+                    if row:
+                        span_value = row.find("span", attrs={"value": True})
+                        if span_value and span_value.has_attr("value"):
+                            return float(span_value["value"])
+                        text = row.get_text(" ", strip=True)
+                        secs = self._parse_hms_to_seconds(text)
+                        if secs is not None:
+                            return float(secs)
+
+            # Fallback: regex on raw HTML
+            match = re.search(r"Duration[^0-9]*([0-9]{1,2}:[0-9]{2}:[0-9]{2})", html, re.IGNORECASE)
+            if match:
+                h, m, s = match.group(1).split(":")
+                return float(int(h) * 3600 + int(m) * 60 + int(s))
+        except Exception:
+            return None
+        return None
+
+    @staticmethod
+    def _parse_hms_to_seconds(text: str) -> Optional[int]:
+        text = text.replace("\u202d", "").replace("\u202c", "")
+        match = re.search(r"(\d{1,2}):(\d{2}):(\d{2})", text)
+        if not match:
+            return None
+        h, m, s = map(int, match.groups())
+        return h * 3600 + m * 60 + s
+
     
 
     def get_tile_html(self, x, y):
@@ -1494,13 +1540,8 @@ class TravianAPI:
         Robuuster gemaakt tegen RTL/Unicode mintekens en onzichtbare layout-tekens.
         """
         try:
-            # Debug toggles
-            try:
-                from config.config import settings as _cfg
-                _dbg_log = bool(getattr(_cfg, 'REPORT_DEBUG_LOG', False))
-                _dbg_dump = bool(getattr(_cfg, 'REPORT_DEBUG_DUMP', False))
-            except Exception:
-                _dbg_log = _dbg_dump = False
+            # Legacy debug toggles (kept default disabled)
+            _dbg_log = _dbg_dump = False
             # 1) lijstpagina
             lst = self.session.get(f"{self.server_url}/berichte.php")
             lst.raise_for_status()
@@ -1689,13 +1730,7 @@ class TravianAPI:
             res = self.session.get(url, params=params)
             res.raise_for_status()
             html = getattr(res, "text", "") or ""
-            try:
-                from config.config import settings as _cfg
-                if bool(getattr(_cfg, 'REPORT_DEBUG_DUMP', False)):
-                    Path("logs").mkdir(parents=True, exist_ok=True)
-                    (Path("logs")/"reports_list.html").write_text(html, encoding="utf-8")
-            except Exception:
-                pass
+            # Optional debug dump disabled by default
             # Extract links: support both absolute and relative hrefs used by overview
             import re
             hrefs = []
@@ -1751,15 +1786,7 @@ class TravianAPI:
             res = self.session.get(url)
             res.raise_for_status()
             html = getattr(res, "text", "") or ""
-            try:
-                from config.config import settings as _cfg
-                if bool(getattr(_cfg, 'REPORT_DEBUG_DUMP', False)):
-                    Path("logs").mkdir(parents=True, exist_ok=True)
-                    import re as _re
-                    fname = _re.sub(r"[^\w\-\|]", "_", href_or_id)[:80]
-                    (Path("logs")/f"report_{fname}.html").write_text(html, encoding="utf-8")
-            except Exception:
-                pass
+            # Optional debug dump disabled by default
             return html
         except Exception as e:
             logging.warning(f"[Reports] Could not fetch detail for {href_or_id}: {e}")

@@ -25,7 +25,7 @@ from core.hero_manager import HeroManager
 from datetime import datetime, timedelta, time as dtime
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
-from core.report_checker import process_ready_pendings_once
+from core.rally_tracker import get_pending_count, process_pending_returns
 from features.defense.attack_detector import run_attack_detector_thread
 from features.tasks.progressive_tasks import collect_rewards_for_all_villages, count_collectible_rewards
 
@@ -628,7 +628,7 @@ def main():
         _log_info("Starting Full Auto Mode.")
         try:
             # Show key feature toggles at startup for clarity
-            feat_reports = bool(getattr(settings, 'PROCESS_REPORTS_IN_AUTOMATION', True))
+            feat_rally = bool(getattr(settings, 'PROCESS_RALLY_RETURNS', True))
             feat_adv = bool(getattr(settings, 'HERO_ADVENTURE_ENABLE', True))
             feat_tasks = bool(getattr(settings, 'PROGRESSIVE_TASKS_ENABLE', True))
             # New independent raiders (robust toggle reader supports nested 'raiding' section)
@@ -671,7 +671,7 @@ def main():
             empty_oasis_enabled = _cfg_bool('EMPTY_OASIS_RAIDER_ENABLE', legacy='ENABLE_EMPTY_OASIS_RAIDER', default=True)
             hero_clear_enabled = _cfg_bool('HERO_OASIS_CLEAR_ENABLE', legacy='ENABLE_HERO_OASIS_CLEAR', default=True)
             print("\n⚙️  Feature Toggles:")
-            print(f"- Reports processing: {'ENABLED' if feat_reports else 'DISABLED'}")
+            print(f"- Rally tracker:     {'ENABLED' if feat_rally else 'DISABLED'}")
             print(f"- Progressive tasks: {'ENABLED' if feat_tasks else 'DISABLED'}")
             print(f"- Hero adventures:   {'ENABLED' if feat_adv else 'DISABLED'}")
             print(f"- FarmListRaider:    {'ENABLED' if fl_enabled else 'DISABLED'}")
@@ -972,53 +972,34 @@ def main():
                     print("❌ Could not fetch hero status summary.")
                     _log_warn("Could not fetch hero status summary.")
 
-                # Report checker – sequential pass (avoid simultaneous activity)
+                # Rally tracker – sequential pass (avoid simultaneous activity)
                 try:
                     from config.config import settings as _cfg
                     learning_on = bool(getattr(_cfg, 'LEARNING_ENABLE', True))
-                    reports_on = bool(getattr(_cfg, 'PROCESS_REPORTS_IN_AUTOMATION', True))
+                    tracking_on = bool(getattr(_cfg, 'PROCESS_RALLY_RETURNS', True))
                     status_txt = None
-                    if learning_on and reports_on:
-                        # quick pendings count
+                    if learning_on and tracking_on:
                         pendings_cnt = 0
                         try:
-                            import json as _json
-                            ppath = Path("database/learning/pending.json")
-                            if ppath.exists():
-                                pendings_cnt = len(_json.loads(ppath.read_text(encoding='utf-8')) or [])
+                            pendings_cnt = get_pending_count()
                         except Exception:
                             pendings_cnt = 0
-                        # unread indicator
-                        unread_now = 0
-                        try:
-                            unread_now = int(api.get_unread_report_count())
-                        except Exception:
-                            unread_now = 0
                         import random as _rnd, time as _t
                         _t.sleep(_rnd.uniform(0.3, 1.0))
-                        # Only invoke the checker when there's actually something to do
-                        if pendings_cnt <= 0 and unread_now <= 0:
-                            _log_info("ReportChecker pass skipped (no pendings and no unread).")
-                            status_txt = "skipped (no unread)"
+                        if pendings_cnt <= 0:
+                            _log_info("RallyTracker pass skipped (no pending raids).")
+                            status_txt = "no pendings"
                         else:
-                            processed = process_ready_pendings_once(api, verbose=True)
-                            _log_info(f"ReportChecker pass processed {processed} pending(s) this cycle.")
-                            if processed > 0:
-                                status_txt = f"processed {processed}"
-                            else:
-                                if pendings_cnt <= 0:
-                                    status_txt = "no pendings"
-                                elif unread_now <= 0:
-                                    status_txt = "skipped (no unread)"
-                                else:
-                                    status_txt = "processed 0"
+                            processed = process_pending_returns(api, verbose=True)
+                            _log_info(f"RallyTracker processed {processed} pending raid(s) this cycle.")
+                            status_txt = f"processed {processed}" if processed else "processed 0"
                     else:
                         status_txt = "disabled"
-                        _log_info("ReportChecker pass skipped (disabled in config).")
+                        _log_info("RallyTracker pass skipped (disabled in config).")
                     if status_txt:
-                        print(f"[Main] 📨 Reports: {status_txt}")
+                        print(f"[Main] 📨 Rally tracker: {status_txt}")
                 except Exception as _e:
-                    _log_warn(f"ReportChecker pass failed: {_e}")
+                    _log_warn(f"RallyTracker pass failed: {_e}")
 
                 # Cycle report (metrics snapshot)
                 try:
