@@ -52,6 +52,7 @@ class TravianAPI:
             self._idle_pages = [
                 "/dorf1.php",
                 "/dorf2.php",
+                "/karte.php",
                 "/report",
                 "/messages",
                 "/statistics/general",
