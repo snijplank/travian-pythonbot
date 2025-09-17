@@ -25,6 +25,7 @@ class LearningStore:
             if key is None:
                 return None
             s = str(key).strip()
+            s = s.replace("\u2212", "-").replace("\u2013", "-")
             # Fast path: already canonical
             if s.startswith("(") and "," in s and " " not in s:
                 return s

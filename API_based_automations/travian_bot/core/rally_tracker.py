@@ -53,6 +53,8 @@ def enqueue_pending_raid(
     sent_units: Dict[str, int],
     depart_epoch: float,
     travel_time_sec: Optional[float],
+    source: str = "oasis",
+    meta: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Persist a pending raid entry that will be matched via the rally point overview."""
     entry = {
@@ -71,10 +73,66 @@ def enqueue_pending_raid(
         ),
         "created": float(time.time()),
         "unit_code": "mixed",
+        "source": source,
     }
+    if meta:
+        entry["meta"] = meta
     data = _load_pending()
     data.append(entry)
     _save_pending(data)
+
+
+def _schedule_immediate_retry(ls: LearningStore, target: str, *, village_id: Optional[int] = None) -> None:
+    """Mark a target as due now and update the next-oasis hint after a full-haul return."""
+    norm_target = _normalize_key(target)
+    if not norm_target:
+        return
+
+    try:
+        interval = float(getattr(settings, "OASIS_TARGET_INTERVAL_MIN_SEC", 600.0))
+    except Exception:
+        interval = 600.0
+
+    now = time.time()
+    try:
+        offset = interval if interval > 0 else 60.0
+        ls.set_last_sent(norm_target, ts=now - offset - 1.0)
+    except Exception as exc:  # pragma: no cover - defensive logging only
+        LOG.debug("[RallyTracker] Failed to mark %s due immediately: %s", norm_target, exc)
+
+    try:
+        hint_path = Path("database/runtime_next_oasis_due.json")
+        payload: Dict[str, Any] = {}
+        if hint_path.exists():
+            payload = json.loads(hint_path.read_text(encoding="utf-8")) or {}
+
+        village_info = payload.get("village")
+        if not isinstance(village_info, dict):
+            village_info = {}
+        if village_id:
+            village_info.setdefault("id", int(village_id))
+            if "x" not in village_info or "y" not in village_info:
+                try:
+                    from identity_handling.identity_helper import load_villages_from_identity
+                    villages = load_villages_from_identity() or []
+                    match = next((v for v in villages if int(v.get("village_id", 0)) == int(village_id)), None)
+                    if match:
+                        village_info.setdefault("x", int(match.get("x")))
+                        village_info.setdefault("y", int(match.get("y")))
+                except Exception:
+                    pass
+        payload["village"] = village_info
+        payload["generated"] = int(now)
+        payload["next_due_sec"] = 0.0
+        payload["next_due_epoch"] = int(now)
+
+        tmp = hint_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(hint_path)
+    except Exception as exc:  # pragma: no cover - defensive logging only
+        LOG.debug("[RallyTracker] Failed to update next-due hint for %s: %s", norm_target, exc)
+
+    LOG.info("[RallyTracker] Full haul for %s — scheduling immediate retry.", norm_target)
 
 
 @dataclass
@@ -85,13 +143,19 @@ class RallyReturn:
     troops_total: int
     bounty_detail: Dict[str, int]
     bounty_total: int
+    carry_full: bool
 
 
 def _parse_coordinates(node: Any) -> Optional[str]:
     if node is None:
         return None
     text = "".join(node.stripped_strings) if hasattr(node, "stripped_strings") else str(node)
-    text = text.replace("\u202d", "").replace("\u202c", "")
+    text = (
+        text.replace("\u202d", "")
+        .replace("\u202c", "")
+        .replace("\u2212", "-")
+        .replace("\u2013", "-")
+    )
     match = re.search(r"([-+]?\d{1,3})\s*\|\s*([-+]?\d{1,3})", text)
     if not match:
         return None
@@ -100,7 +164,12 @@ def _parse_coordinates(node: Any) -> Optional[str]:
 
 
 def _parse_time_to_seconds(text: str) -> Optional[int]:
-    text = text.replace("\u202d", "").replace("\u202c", "")
+    text = (
+        text.replace("\u202d", "")
+        .replace("\u202c", "")
+        .replace("\u2212", "-")
+        .replace("\u2013", "-")
+    )
     match = re.search(r"(\d{1,2}):(\d{2}):(\d{2})", text)
     if not match:
         return None
@@ -144,7 +213,13 @@ def _parse_return_table(table: Any, server_epoch: float) -> Optional[RallyReturn
         counts: List[int] = []
         if counts_row:
             for td in counts_row.find_all("td", class_=lambda c: c and "unit" in c):
-                txt = td.get_text(strip=True).replace("\u202d", "").replace("\u202c", "")
+                txt = (
+                    td.get_text(strip=True)
+                    .replace("\u202d", "")
+                    .replace("\u202c", "")
+                    .replace("\u2212", "-")
+                    .replace("\u2013", "-")
+                )
                 try:
                     counts.append(int(txt))
                 except Exception:
@@ -160,6 +235,7 @@ def _parse_return_table(table: Any, server_epoch: float) -> Optional[RallyReturn
 
         bounty_total = 0
         bounty_detail: Dict[str, int] = {}
+        carry_full = False
         arrival_in: Optional[int] = None
         for info_body in table.find_all("tbody", class_="infos"):
             th = info_body.find("th")
@@ -177,6 +253,10 @@ def _parse_return_table(table: Any, server_epoch: float) -> Optional[RallyReturn
                         "crop": crop,
                     }
                     bounty_total = wood + clay + iron + crop
+                icon = info_body.find("i", class_=lambda c: c and "carry" in c)
+                if icon:
+                    classes = icon.get("class", [])
+                    carry_full = any("full" == cls or cls.endswith("full") for cls in classes)
             elif "Arrival" in label:
                 timer = info_body.find("span", class_="timer")
                 if timer and timer.has_attr("value"):
@@ -196,6 +276,7 @@ def _parse_return_table(table: Any, server_epoch: float) -> Optional[RallyReturn
             troops_total=troops_total,
             bounty_detail=bounty_detail,
             bounty_total=bounty_total,
+            carry_full=carry_full,
         )
     except Exception:
         return None
@@ -252,10 +333,13 @@ def process_pending_returns(api, *, verbose: bool = False) -> int:
         data = cache.get(village_id) or {"server_epoch": time.time(), "returns": []}
         server_epoch = float(data.get("server_epoch", time.time()))
         returns = data.get("returns", [])
-        match = _match_pending(item, returns, tolerance)
+        match = _match_pending(item, returns, tolerance, server_epoch)
         if match:
             processed += 1
-            _apply_learning(ls, item, match, verbose=verbose)
+            info = _apply_learning(ls, item, match, verbose=verbose)
+            source = str(item.get("source") or (item.get("meta", {}) if isinstance(item.get("meta"), dict) else {}).get("source") or "oasis").lower()
+            if info.get("carry_full") and source == "oasis":
+                _schedule_immediate_retry(ls, match.target, village_id=village_id)
             match._matched = True  # mark for future filtering
             continue
         expected = item.get("expected_return_epoch")
@@ -273,7 +357,12 @@ def _normalize_key(key: Optional[str]) -> Optional[str]:
     return LearningStore._normalize_key(key) if key is not None else None
 
 
-def _match_pending(item: Dict[str, Any], returns: List[RallyReturn], tolerance: float) -> Optional[RallyReturn]:
+def _match_pending(
+    item: Dict[str, Any],
+    returns: List[RallyReturn],
+    tolerance: float,
+    server_epoch: float,
+) -> Optional[RallyReturn]:
     norm_target = _normalize_key(item.get("target"))
     expected = item.get("expected_return_epoch")
     candidate: Optional[RallyReturn] = None
@@ -301,16 +390,51 @@ def _match_pending(item: Dict[str, Any], returns: List[RallyReturn], tolerance: 
             return candidate
         return None
 
-    # No expected arrival recorded → fallback: only match if single candidate remains
+    # No expected arrival recorded → try to match by unit composition and departure timing.
+    def _normalize_units(obj: Dict[str, Any] | None) -> Dict[str, int]:
+        out: Dict[str, int] = {}
+        if not isinstance(obj, dict):
+            return out
+        for k, v in obj.items():
+            try:
+                val = int(v)
+            except Exception:
+                continue
+            if val > 0:
+                out[str(k)] = val
+        return out
+
+    sent_units = _normalize_units(item.get("sent_units"))
+    depart_epoch = float(item.get("depart_epoch", 0) or 0)
+    best_match: Optional[RallyReturn] = None
+    best_metric: Optional[float] = None
+    for entry in candidates:
+        entry_units = _normalize_units(entry.troops)
+        if sent_units and entry_units != sent_units:
+            continue
+        if depart_epoch > 0:
+            metric = float(entry.arrival_epoch) - depart_epoch
+            if metric < 0:
+                continue
+        else:
+            metric = float(entry.arrival_epoch) - server_epoch
+        if best_match is None or metric < (best_metric or float("inf")):
+            best_match = entry
+            best_metric = metric
+
+    if best_match:
+        return best_match
+
+    # Fallback: only match if single candidate remains
     if len(candidates) == 1:
         return candidates[0]
     return None
 
 
-def _apply_learning(ls: LearningStore, item: Dict[str, Any], entry: RallyReturn, *, verbose: bool = False) -> None:
+def _apply_learning(ls: LearningStore, item: Dict[str, Any], entry: RallyReturn, *, verbose: bool = False) -> Dict[str, Any]:
     key = _normalize_key(item.get("target")) or item.get("target")
     if not key:
-        return
+        return {}
     recommended = int(item.get("recommended", 0) or 0)
     sent_total = int(item.get("sent_total", 0) or 0)
     sent_total = max(sent_total, 1)
@@ -373,6 +497,14 @@ def _apply_learning(ls: LearningStore, item: Dict[str, Any], entry: RallyReturn,
         add_learning_change(key, old=current, new=m, direction=direction, loss_pct=loss_pct)
         if verbose:
             LOG.info("[RallyTracker] %s → multiplier %s to %.3f (loss %.0f%%, haul %s)", key, direction, m, loss_pct * 100, entry.bounty_total)
+    info = {
+        "result": result,
+        "loss_pct": loss_pct,
+        "bounty_total": entry.bounty_total,
+        "carry_full": entry.carry_full,
+        "multiplier": m,
+    }
+    return info
 
 
 def _handle_timeout(ls: LearningStore, item: Dict[str, Any], *, verbose: bool = False) -> None:

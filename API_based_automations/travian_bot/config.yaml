@@ -110,7 +110,7 @@ raiding:
 NEW_VILLAGE_PRESET_ENABLE: false
 learning:
   # Enable/disable adaptive multipliers based on rally overview feedback.
-  LEARNING_ENABLE: false
+  LEARNING_ENABLE: true
   # Per-oasis escort multiplier learning and thresholds.
   # Lower bound for per-oasis escort multiplier.
   LEARNING_MIN_MUL: 0.8

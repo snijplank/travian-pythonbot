@@ -173,18 +173,20 @@ class TravianAPI:
                 self._monitor_response(resp)
             except Exception:
                 pass
-            logging.debug("[Humanizer] Idle lookaround → %s (status %s)", page, getattr(resp, "status_code", "?"))
+            logging.info("[Humanizer] Idle lookaround → %s (status %s)", page, getattr(resp, "status_code", "?"))
         except Exception as exc:
-            logging.debug("[Humanizer] Idle lookaround failed for %s: %s", page, exc)
+            logging.info("[Humanizer] Idle lookaround failed for %s: %s", page, exc)
 
     def _monitor_response(self, response: Optional[requests.Response]) -> None:
         if response is None:
             return
         suspicious_reasons: list[str] = []
+        suspicious_details: list[str] = []
         try:
             status = getattr(response, "status_code", None)
             if isinstance(status, int) and status in (403, 429, 503):
                 suspicious_reasons.append(f"status {status}")
+                suspicious_details.append(f"status={status}")
         except Exception:
             pass
         headers = getattr(response, "headers", {}) or {}
@@ -193,12 +195,14 @@ class TravianAPI:
                 text = f"{key}:{value}".lower()
                 if any(token in text for token in ("captcha", "bot", "verify", "attention")):
                     suspicious_reasons.append(f"header {key}")
+                    suspicious_details.append(f"{key}={value}")
         except Exception:
             pass
         try:
             set_cookie = headers.get("Set-Cookie", "")
             if isinstance(set_cookie, str) and "captcha" in set_cookie.lower():
                 suspicious_reasons.append("Set-Cookie captcha")
+                suspicious_details.append(f"Set-Cookie={set_cookie}")
         except Exception:
             pass
         try:
@@ -209,14 +213,19 @@ class TravianAPI:
                         name = getattr(cookie, "name", "")
                         if name and "captcha" in str(name).lower():
                             suspicious_reasons.append(f"cookie {name}")
+                            suspicious_details.append(f"cookie {name}={getattr(cookie, 'value', '')}")
                     except Exception:
                         continue
         except Exception:
             pass
         if suspicious_reasons:
+            detail_txt = ""
+            if suspicious_details:
+                detail_txt = " Details: " + "; ".join(suspicious_details)
             logging.warning(
-                "[Humanizer] Suspicion trigger detected (%s). Initiating cool-down.",
+                "[Humanizer] Suspicion trigger detected (%s). Initiating cool-down.%s",
                 ", ".join(suspicious_reasons),
+                detail_txt,
             )
             self._handle_suspicion()
 
