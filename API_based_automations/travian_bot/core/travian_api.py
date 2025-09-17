@@ -1,5 +1,7 @@
 import requests
 import re
+import random
+import time
 from bs4 import BeautifulSoup
 from analysis.animal_to_power_mapping import get_animal_power
 from core.unit_catalog import resolve_unit_base_name, resolve_label_u
@@ -11,7 +13,9 @@ from pathlib import Path
 class TravianAPI:
     def __init__(self, session: requests.Session, server_url: str):
         self.session = session
-        self.server_url = server_url
+        # Normalize server URL to avoid '//path' issues when concatenating endpoints
+        sanitized_url = (server_url or "").strip()
+        self.server_url = sanitized_url.rstrip('/') if sanitized_url else sanitized_url
         # Humanizer state
         try:
             from config.config import settings as _cfg
@@ -21,19 +25,51 @@ class TravianAPI:
             self._human_long_min = max(0.0, float(getattr(_cfg, 'HUMAN_LONG_PAUSE_MIN', 3.0)))
             self._human_long_max = max(self._human_long_min, float(getattr(_cfg, 'HUMAN_LONG_PAUSE_MAX', 6.0)))
             self._human_long_prob = max(0.0, min(1.0, float(getattr(_cfg, 'HUMAN_LONG_PAUSE_PROB', 0.12))))
-            # Optional build header for JSON endpoints observed in HAR
+            self._idle_prob = max(0.0, min(1.0, float(getattr(_cfg, 'HUMAN_IDLE_LOOKAROUND_PROB', 0.25))))
+            self._idle_min_interval = max(15.0, float(getattr(_cfg, 'HUMAN_IDLE_MIN_INTERVAL', 45.0)))
+            self._idle_max_interval = max(self._idle_min_interval, float(getattr(_cfg, 'HUMAN_IDLE_MAX_INTERVAL', 180.0)))
+            self._idle_jitter_min = max(0.0, float(getattr(_cfg, 'HUMAN_IDLE_JITTER_MIN', 0.4)))
+            self._idle_jitter_max = max(self._idle_jitter_min, float(getattr(_cfg, 'HUMAN_IDLE_JITTER_MAX', 1.3)))
+            self._suspicion_sleep_min = max(0.0, float(getattr(_cfg, 'HUMAN_SUSPICION_SLEEP_MIN', 90.0)))
+            self._suspicion_sleep_max = max(self._suspicion_sleep_min, float(getattr(_cfg, 'HUMAN_SUSPICION_SLEEP_MAX', 240.0)))
+            pages = getattr(_cfg, 'HUMAN_IDLE_LOOKAROUND_PAGES', None)
+            if isinstance(pages, (list, tuple)):
+                self._idle_pages = [str(p).strip() for p in pages if str(p).strip()]
+            else:
+                self._idle_pages = []
             self._x_version = str(getattr(_cfg, 'TRAVIAN_X_VERSION', '') or '').strip()
         except Exception:
             self._human_min, self._human_max = 0.6, 2.2
             self._human_every, self._human_long_min, self._human_long_max = 7, 3.0, 6.0
             self._human_long_prob = 0.12
+            self._idle_prob = 0.25
+            self._idle_min_interval, self._idle_max_interval = 45.0, 180.0
+            self._idle_jitter_min, self._idle_jitter_max = 0.4, 1.3
+            self._suspicion_sleep_min, self._suspicion_sleep_max = 90.0, 240.0
+            self._idle_pages = []
             self._x_version = ''
+        if not self._idle_pages:
+            self._idle_pages = [
+                "/dorf1.php",
+                "/dorf2.php",
+                "/berichte.php",
+                "/nachrichten.php",
+                "/statistics.php?id=5",
+                "/hero/adventures",
+            ]
+        self._idle_next_ts = time.time()  # schedule immediately to seed interval
         self._req_counter = 0
         # Set polite default headers if missing
         try:
             self.session.headers.setdefault('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8')
             self.session.headers.setdefault('Accept-Language', 'nl-NL,nl;q=0.9,en-US;q=0.8,en;q=0.7')
             self.session.headers.setdefault('Connection', 'keep-alive')
+            self.session.headers.setdefault(
+                'User-Agent',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+            )
+            self.session.headers.setdefault('Accept-Encoding', 'gzip, deflate, br, zstd')
         except Exception:
             pass
         # Wrap session.request to inject human-like delays globally
@@ -50,13 +86,24 @@ class TravianAPI:
                     _t.sleep(random.uniform(self._human_long_min, self._human_long_max))
             except Exception:
                 pass
-            return self._raw_request(method, url, **kwargs)
+            resp = self._raw_request(method, url, **kwargs)
+            try:
+                self._monitor_response(resp)
+            except Exception:
+                pass
+            try:
+                self._maybe_idle_browse()
+            except Exception:
+                pass
+            return resp
 
         try:
             self._human_request = _human_request  # type: ignore[attr-defined]
             self.session.request = self._human_request  # type: ignore
         except Exception:
             pass
+
+        self._schedule_next_idle()
 
         # Ensure Travian X-Version header is present: use config override or auto-detect
         try:
@@ -78,11 +125,112 @@ class TravianAPI:
             if enabled:
                 if hasattr(self, "_human_request"):
                     self.session.request = getattr(self, "_human_request")  # type: ignore
+                    self._schedule_next_idle()
             else:
                 if hasattr(self, "_raw_request"):
                     self.session.request = getattr(self, "_raw_request")  # type: ignore
         except Exception:
             pass
+
+    # --- Humanizer helpers ---
+    def _schedule_next_idle(self) -> None:
+        try:
+            interval = random.uniform(self._idle_min_interval, self._idle_max_interval)
+            self._idle_next_ts = time.time() + interval
+        except Exception:
+            self._idle_next_ts = float("inf")
+
+    def _maybe_idle_browse(self) -> None:
+        if not self._idle_pages or self._idle_prob <= 0:
+            return
+        now = time.time()
+        if now < getattr(self, "_idle_next_ts", 0.0):
+            return
+        try:
+            roll = random.random()
+        except Exception:
+            roll = 1.0
+        # Regardless of outcome, schedule the next check to avoid tight loops
+        self._schedule_next_idle()
+        if roll > self._idle_prob:
+            return
+        try:
+            page = random.choice(self._idle_pages)
+        except Exception:
+            return
+        if not page:
+            return
+        try:
+            delay = random.uniform(self._idle_jitter_min, self._idle_jitter_max)
+        except Exception:
+            delay = 0.6
+        if delay > 0:
+            time.sleep(delay)
+        try:
+            url = f"{self.server_url.rstrip('/')}/{page.lstrip('/')}"
+            resp = self._raw_request("GET", url, timeout=15)
+            try:
+                self._monitor_response(resp)
+            except Exception:
+                pass
+            logging.debug("[Humanizer] Idle lookaround → %s (status %s)", page, getattr(resp, "status_code", "?"))
+        except Exception as exc:
+            logging.debug("[Humanizer] Idle lookaround failed for %s: %s", page, exc)
+
+    def _monitor_response(self, response: Optional[requests.Response]) -> None:
+        if response is None:
+            return
+        suspicious_reasons: list[str] = []
+        try:
+            status = getattr(response, "status_code", None)
+            if isinstance(status, int) and status in (403, 429, 503):
+                suspicious_reasons.append(f"status {status}")
+        except Exception:
+            pass
+        headers = getattr(response, "headers", {}) or {}
+        try:
+            for key, value in headers.items():
+                text = f"{key}:{value}".lower()
+                if any(token in text for token in ("captcha", "bot", "verify", "attention")):
+                    suspicious_reasons.append(f"header {key}")
+        except Exception:
+            pass
+        try:
+            set_cookie = headers.get("Set-Cookie", "")
+            if isinstance(set_cookie, str) and "captcha" in set_cookie.lower():
+                suspicious_reasons.append("Set-Cookie captcha")
+        except Exception:
+            pass
+        try:
+            cookies = getattr(response, "cookies", None)
+            if cookies is not None:
+                for cookie in cookies:
+                    try:
+                        name = getattr(cookie, "name", "")
+                        if name and "captcha" in str(name).lower():
+                            suspicious_reasons.append(f"cookie {name}")
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+        if suspicious_reasons:
+            logging.warning(
+                "[Humanizer] Suspicion trigger detected (%s). Initiating cool-down.",
+                ", ".join(suspicious_reasons),
+            )
+            self._handle_suspicion()
+
+    def _handle_suspicion(self) -> None:
+        try:
+            sleep_min = getattr(self, "_suspicion_sleep_min", 90.0)
+            sleep_max = getattr(self, "_suspicion_sleep_max", max(sleep_min, 240.0))
+            cooldown = random.uniform(sleep_min, sleep_max)
+        except Exception:
+            cooldown = 120.0
+        logging.info("[Humanizer] Cooling down for %.1f seconds due to suspicion signal.", cooldown)
+        if cooldown > 0:
+            time.sleep(cooldown)
+        self._schedule_next_idle()
 
     def get_player_info(self):
         payload = {

@@ -1,6 +1,5 @@
 import logging
-import json
-from pathlib import Path
+import math
 
 try:
     from config.config import settings
@@ -9,6 +8,7 @@ except Exception:
     settings = _F(); settings.HERO_ATTACK_ESTIMATE = 0; settings.ESCORT_SAFETY_FACTOR = 1.0
 
 from core.combat_stats import get_unit_attack, estimate_escort_units
+from identity_handling.identity_helper import get_account_tribe_id
 
 def try_send_hero_to_oasis(api, village, oasis, min_power=50, max_power=2000, help=True):
     """
@@ -85,20 +85,9 @@ def try_send_hero_to_oasis(api, village, oasis, min_power=50, max_power=2000, he
         return False
 
     # Determine tribe_id from identity (fallback to 4=Huns if missing)
-    tribe_id = None
     try:
-        ident_path = Path("database/identity.json")
-        if ident_path.exists():
-            data = json.loads(ident_path.read_text(encoding="utf-8"))
-            tribe_id = data.get("travian_identity", {}).get("tribe_id")
+        tribe_id = int(get_account_tribe_id())
     except Exception:
-        tribe_id = None
-    # Normalize tribe_id into known range 1..5; default to 4 (Huns)
-    try:
-        tribe_id = int(tribe_id) if tribe_id is not None else None
-    except Exception:
-        tribe_id = None
-    if tribe_id not in (1, 2, 3, 4, 5):
         tribe_id = 4
 
     # Use live hero attack estimate when possible; fallback to config
@@ -107,7 +96,7 @@ def try_send_hero_to_oasis(api, village, oasis, min_power=50, max_power=2000, he
         live_hero_atk = api.get_hero_attack_estimate()
     except Exception:
         live_hero_atk = None
-    hero_atk = live_hero_atk if isinstance(live_hero_atk, int) else getattr(settings, "HERO_ATTACK_ESTIMATE", 0)
+    hero_atk = live_hero_atk if isinstance(live_hero_atk, (int, float)) else getattr(settings, "HERO_ATTACK_ESTIMATE", 0)
     safety = float(getattr(settings, "ESCORT_SAFETY_FACTOR", 1.0))
 
     # Dynamically choose an escort unit based on availability (default priority starts with t5)
@@ -173,6 +162,12 @@ def try_send_hero_to_oasis(api, village, oasis, min_power=50, max_power=2000, he
         unit_atk = get_unit_attack(tribe_id, escort_unit)
         required = max(0.0, power * safety - float(hero_atk))
         recommended = estimate_escort_units(required_attack=required, unit_attack=unit_atk, min_units=1, max_units=50)
+        try:
+            recommended = float(recommended)
+        except Exception:
+            recommended = 0.0
+        recommended = max(1.0, recommended * 1.2)  # send 20% more escort units for safety
+        recommended = math.ceil(recommended)
         available_count = int(available_by_t.get(escort_unit, 0))
         if available_count < recommended:
             logging.info(

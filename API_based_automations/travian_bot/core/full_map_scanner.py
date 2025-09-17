@@ -1,6 +1,32 @@
 # core/full_map_scanner.py
 
-from tqdm import tqdm
+import logging
+
+try:
+    from tqdm import tqdm  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    logging.getLogger(__name__).warning(
+        "tqdm not installed; map scan progress bar disabled. Run 'pip install tqdm' to restore it.")
+
+    class tqdm:  # type: ignore
+        """Fallback progress helper when tqdm is unavailable."""
+
+        def __init__(self, iterable=None, **_: object):
+            self._iterable = iterable
+            self.total = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc: object):  # noqa: ANN204 - std context signature
+            return False
+
+        def update(self, *_: object) -> None:
+            pass
+
+        def __iter__(self):
+            return iter(self._iterable or [])
+
 from bs4 import BeautifulSoup
 from core.database_json_scan_utils import save_json_scan
 
@@ -37,7 +63,7 @@ def scan_map_area(api_client, x_start, x_end, y_start, y_end):
     total_tiles = (x_end - x_start + 1) * (y_end - y_start + 1)
 
     with tqdm(total=total_tiles, desc="🗺️  Scanning Progress", unit="tile") as pbar:
-        for x in range(x_start, x_end + 1):
+        for idx, x in enumerate(range(x_start, x_end + 1), start=1):
             for y in range(y_start, y_end + 1):
                 try:
                     html = api_client.get_tile_html(x, y)
@@ -47,6 +73,10 @@ def scan_map_area(api_client, x_start, x_end, y_start, y_end):
                     print(f"❌ Error scanning ({x},{y}): {e}")
                 finally:
                     pbar.update(1)
+            # Emit a lightweight progress hint every row when tqdm fallback is active
+            if getattr(pbar, "total", None) is None:
+                scanned = idx * (y_end - y_start + 1)
+                print(f"[i] Scanned {scanned}/{total_tiles} tiles...")
 
     return scanned_data
 

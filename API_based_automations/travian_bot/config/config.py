@@ -78,6 +78,13 @@ def _as_bool(val, default: bool) -> bool:
         return default
 
 
+def _as_float(val, default: float) -> float:
+    try:
+        return float(str(val))
+    except Exception:
+        return default
+
+
 @dataclass
 class Settings:
     # Core cadence
@@ -113,6 +120,7 @@ class Settings:
     # Credentials (optional; can be prompted interactively if empty)
     TRAVIAN_EMAIL: str = ""
     TRAVIAN_PASSWORD: str = ""
+    TRIBE_HINT: str = ""
     # Optional build header for JSON APIs (HAR shows X-Version required on some endpoints)
     TRAVIAN_X_VERSION: str = ""
 
@@ -129,6 +137,14 @@ class Settings:
 
     # Additional human-like behavior toggles
     HUMAN_LONG_PAUSE_PROB: float = 0.12   # probability for a long pause after a request
+    HUMAN_IDLE_LOOKAROUND_PROB: float = 0.25
+    HUMAN_IDLE_MIN_INTERVAL: float = 45.0
+    HUMAN_IDLE_MAX_INTERVAL: float = 180.0
+    HUMAN_IDLE_LOOKAROUND_PAGES: list[str] | None = None
+    HUMAN_IDLE_JITTER_MIN: float = 0.4
+    HUMAN_IDLE_JITTER_MAX: float = 1.3
+    HUMAN_SUSPICION_SLEEP_MIN: float = 90.0
+    HUMAN_SUSPICION_SLEEP_MAX: float = 240.0
     SHUFFLE_VILLAGE_ORDER: bool = True    # randomize village order per cycle
     FARM_LIST_RANDOM_SKIP_PROB: float = 0.15  # chance to skip farm lists for a village this cycle
     OP_COFFEE_BREAK_PROB: float = 0.10    # chance to add an extra break between cycles
@@ -147,6 +163,8 @@ class Settings:
     REST_MIN_MINUTES: int = 30                # random rest minutes between blocks
     REST_MAX_MINUTES: int = 90
     QUIET_WINDOWS: list[str] | None = None    # e.g., ["01:00-06:00", "13:15-14:00"]
+    QUIET_WINDOW_RESUME_JITTER_MIN: float = 60.0
+    QUIET_WINDOW_RESUME_JITTER_MAX: float = 240.0
     SKIP_CYCLE_PROB: float = 0.0              # chance (0..1) to skip an entire cycle
 
     # Attack detector (screen OCR → Discord)
@@ -221,6 +239,7 @@ class Settings:
             "TRAVIAN_EMAIL": self.TRAVIAN_EMAIL,
             "TRAVIAN_PASSWORD": "***" if self.TRAVIAN_PASSWORD else "",
             "TRAVIAN_X_VERSION": self.TRAVIAN_X_VERSION,
+            "TRIBE_HINT": self.TRIBE_HINT,
             "HUMAN_MIN_DELAY": self.HUMAN_MIN_DELAY,
             "HUMAN_MAX_DELAY": self.HUMAN_MAX_DELAY,
             "HUMAN_LONG_PAUSE_EVERY": self.HUMAN_LONG_PAUSE_EVERY,
@@ -229,6 +248,14 @@ class Settings:
             "OP_JITTER_MIN_SEC": self.OP_JITTER_MIN_SEC,
             "OP_JITTER_MAX_SEC": self.OP_JITTER_MAX_SEC,
             "HUMAN_LONG_PAUSE_PROB": self.HUMAN_LONG_PAUSE_PROB,
+            "HUMAN_IDLE_LOOKAROUND_PROB": self.HUMAN_IDLE_LOOKAROUND_PROB,
+            "HUMAN_IDLE_MIN_INTERVAL": self.HUMAN_IDLE_MIN_INTERVAL,
+            "HUMAN_IDLE_MAX_INTERVAL": self.HUMAN_IDLE_MAX_INTERVAL,
+            "HUMAN_IDLE_LOOKAROUND_PAGES": self.HUMAN_IDLE_LOOKAROUND_PAGES or [],
+            "HUMAN_IDLE_JITTER_MIN": self.HUMAN_IDLE_JITTER_MIN,
+            "HUMAN_IDLE_JITTER_MAX": self.HUMAN_IDLE_JITTER_MAX,
+            "HUMAN_SUSPICION_SLEEP_MIN": self.HUMAN_SUSPICION_SLEEP_MIN,
+            "HUMAN_SUSPICION_SLEEP_MAX": self.HUMAN_SUSPICION_SLEEP_MAX,
             "SHUFFLE_VILLAGE_ORDER": self.SHUFFLE_VILLAGE_ORDER,
             "FARM_LIST_RANDOM_SKIP_PROB": self.FARM_LIST_RANDOM_SKIP_PROB,
             "OP_COFFEE_BREAK_PROB": self.OP_COFFEE_BREAK_PROB,
@@ -243,6 +270,8 @@ class Settings:
             "REST_MIN_MINUTES": self.REST_MIN_MINUTES,
             "REST_MAX_MINUTES": self.REST_MAX_MINUTES,
             "QUIET_WINDOWS": self.QUIET_WINDOWS or [],
+            "QUIET_WINDOW_RESUME_JITTER_MIN": self.QUIET_WINDOW_RESUME_JITTER_MIN,
+            "QUIET_WINDOW_RESUME_JITTER_MAX": self.QUIET_WINDOW_RESUME_JITTER_MAX,
             "SKIP_CYCLE_PROB": self.SKIP_CYCLE_PROB,
             "ATTACK_DETECTOR_ENABLE": self.ATTACK_DETECTOR_ENABLE,
             "ATTACK_DETECTOR_DISCORD_WEBHOOK": bool(self.ATTACK_DETECTOR_DISCORD_WEBHOOK),
@@ -284,7 +313,7 @@ class Settings:
 
 def load_settings(env_prefix: str = "") -> Settings:
     s = Settings()
-    cfg_raw = _load_yaml("config.yaml")
+    cfg_raw = _load_yaml("/home/travian/python_travianbot/API_based_automations/travian_bot/config.yaml")
     cfg = _flatten_cfg(cfg_raw)
 
     def g(name: str, default):
@@ -298,6 +327,20 @@ def load_settings(env_prefix: str = "") -> Settings:
     s.ENABLE_CYCLE_LIMITER = _as_bool(g("ENABLE_CYCLE_LIMITER", s.ENABLE_CYCLE_LIMITER), s.ENABLE_CYCLE_LIMITER)
     s.DAILY_MAX_RUNTIME_MINUTES = _as_int(g("DAILY_MAX_RUNTIME_MINUTES", s.DAILY_MAX_RUNTIME_MINUTES), s.DAILY_MAX_RUNTIME_MINUTES)
     s.DAILY_BLOCKS = _as_int(g("DAILY_BLOCKS", s.DAILY_BLOCKS), s.DAILY_BLOCKS)
+    s.BLOCK_SIZE_MIN = _as_int(g("BLOCK_SIZE_MIN", s.BLOCK_SIZE_MIN), s.BLOCK_SIZE_MIN)
+    s.BLOCK_SIZE_MAX = _as_int(g("BLOCK_SIZE_MAX", s.BLOCK_SIZE_MAX), s.BLOCK_SIZE_MAX)
+    s.REST_MIN_MINUTES = _as_int(g("REST_MIN_MINUTES", s.REST_MIN_MINUTES), s.REST_MIN_MINUTES)
+    s.REST_MAX_MINUTES = _as_int(g("REST_MAX_MINUTES", s.REST_MAX_MINUTES), s.REST_MAX_MINUTES)
+    quiet = g("QUIET_WINDOWS", s.QUIET_WINDOWS or []) or []
+    if isinstance(quiet, str):
+        s.QUIET_WINDOWS = [q.strip() for q in quiet.split(',') if q.strip()]
+    elif isinstance(quiet, list):
+        s.QUIET_WINDOWS = [str(q).strip() for q in quiet if str(q).strip()]
+    else:
+        s.QUIET_WINDOWS = []
+    s.QUIET_WINDOW_RESUME_JITTER_MIN = _as_float(g("QUIET_WINDOW_RESUME_JITTER_MIN", s.QUIET_WINDOW_RESUME_JITTER_MIN), s.QUIET_WINDOW_RESUME_JITTER_MIN)
+    s.QUIET_WINDOW_RESUME_JITTER_MAX = _as_float(g("QUIET_WINDOW_RESUME_JITTER_MAX", s.QUIET_WINDOW_RESUME_JITTER_MAX), s.QUIET_WINDOW_RESUME_JITTER_MAX)
+    s.SKIP_CYCLE_PROB = _as_float(g("SKIP_CYCLE_PROB", s.SKIP_CYCLE_PROB), s.SKIP_CYCLE_PROB)
 
     s.LOG_LEVEL = _as_str(g("LOG_LEVEL", s.LOG_LEVEL), s.LOG_LEVEL)
     s.LOG_DIR = _as_str(g("LOG_DIR", s.LOG_DIR), s.LOG_DIR)
@@ -316,12 +359,6 @@ def load_settings(env_prefix: str = "") -> Settings:
     s.NEW_VILLAGE_PRESET_ENABLE = _as_bool(g("NEW_VILLAGE_PRESET_ENABLE", s.NEW_VILLAGE_PRESET_ENABLE), s.NEW_VILLAGE_PRESET_ENABLE)
 
     # Learning loop parameters
-    def _as_float(val, default: float) -> float:
-        try:
-            return float(str(val))
-        except Exception:
-            return default
-
     s.LEARNING_ENABLE = _as_bool(g("LEARNING_ENABLE", s.LEARNING_ENABLE), s.LEARNING_ENABLE)
     s.LEARNING_MIN_MUL = _as_float(g("LEARNING_MIN_MUL", s.LEARNING_MIN_MUL), s.LEARNING_MIN_MUL)
     s.LEARNING_MAX_MUL = _as_float(g("LEARNING_MAX_MUL", s.LEARNING_MAX_MUL), s.LEARNING_MAX_MUL)
@@ -335,13 +372,9 @@ def load_settings(env_prefix: str = "") -> Settings:
     s.TRAVIAN_EMAIL = _as_str(g("TRAVIAN_EMAIL", s.TRAVIAN_EMAIL), s.TRAVIAN_EMAIL)
     s.TRAVIAN_PASSWORD = _as_str(g("TRAVIAN_PASSWORD", s.TRAVIAN_PASSWORD), s.TRAVIAN_PASSWORD)
     s.TRAVIAN_X_VERSION = _as_str(g("TRAVIAN_X_VERSION", s.TRAVIAN_X_VERSION), s.TRAVIAN_X_VERSION)
+    s.TRIBE_HINT = _as_str(g("TRIBE_HINT", s.TRIBE_HINT), s.TRIBE_HINT)
 
     # Humanizer
-    def _as_float(val, default: float) -> float:
-        try:
-            return float(str(val))
-        except Exception:
-            return default
     s.HUMAN_MIN_DELAY = _as_float(g("HUMAN_MIN_DELAY", s.HUMAN_MIN_DELAY), s.HUMAN_MIN_DELAY)
     s.HUMAN_MAX_DELAY = _as_float(g("HUMAN_MAX_DELAY", s.HUMAN_MAX_DELAY), s.HUMAN_MAX_DELAY)
     s.HUMAN_LONG_PAUSE_EVERY = _as_int(g("HUMAN_LONG_PAUSE_EVERY", s.HUMAN_LONG_PAUSE_EVERY), s.HUMAN_LONG_PAUSE_EVERY)
@@ -354,6 +387,20 @@ def load_settings(env_prefix: str = "") -> Settings:
 
     # Human-like behavior options
     s.HUMAN_LONG_PAUSE_PROB = _as_float(g("HUMAN_LONG_PAUSE_PROB", s.HUMAN_LONG_PAUSE_PROB), s.HUMAN_LONG_PAUSE_PROB)
+    s.HUMAN_IDLE_LOOKAROUND_PROB = _as_float(g("HUMAN_IDLE_LOOKAROUND_PROB", s.HUMAN_IDLE_LOOKAROUND_PROB), s.HUMAN_IDLE_LOOKAROUND_PROB)
+    s.HUMAN_IDLE_MIN_INTERVAL = _as_float(g("HUMAN_IDLE_MIN_INTERVAL", s.HUMAN_IDLE_MIN_INTERVAL), s.HUMAN_IDLE_MIN_INTERVAL)
+    s.HUMAN_IDLE_MAX_INTERVAL = _as_float(g("HUMAN_IDLE_MAX_INTERVAL", s.HUMAN_IDLE_MAX_INTERVAL), s.HUMAN_IDLE_MAX_INTERVAL)
+    s.HUMAN_IDLE_JITTER_MIN = _as_float(g("HUMAN_IDLE_JITTER_MIN", s.HUMAN_IDLE_JITTER_MIN), s.HUMAN_IDLE_JITTER_MIN)
+    s.HUMAN_IDLE_JITTER_MAX = _as_float(g("HUMAN_IDLE_JITTER_MAX", s.HUMAN_IDLE_JITTER_MAX), s.HUMAN_IDLE_JITTER_MAX)
+    s.HUMAN_SUSPICION_SLEEP_MIN = _as_float(g("HUMAN_SUSPICION_SLEEP_MIN", s.HUMAN_SUSPICION_SLEEP_MIN), s.HUMAN_SUSPICION_SLEEP_MIN)
+    s.HUMAN_SUSPICION_SLEEP_MAX = _as_float(g("HUMAN_SUSPICION_SLEEP_MAX", s.HUMAN_SUSPICION_SLEEP_MAX), s.HUMAN_SUSPICION_SLEEP_MAX)
+    idle_pages = g("HUMAN_IDLE_LOOKAROUND_PAGES", s.HUMAN_IDLE_LOOKAROUND_PAGES or []) or []
+    if isinstance(idle_pages, str):
+        s.HUMAN_IDLE_LOOKAROUND_PAGES = [p.strip() for p in idle_pages.split(',') if p.strip()]
+    elif isinstance(idle_pages, list):
+        s.HUMAN_IDLE_LOOKAROUND_PAGES = [str(p).strip() for p in idle_pages if str(p).strip()]
+    else:
+        s.HUMAN_IDLE_LOOKAROUND_PAGES = []
     s.SHUFFLE_VILLAGE_ORDER = _as_bool(g("SHUFFLE_VILLAGE_ORDER", s.SHUFFLE_VILLAGE_ORDER), s.SHUFFLE_VILLAGE_ORDER)
     s.FARM_LIST_RANDOM_SKIP_PROB = _as_float(g("FARM_LIST_RANDOM_SKIP_PROB", s.FARM_LIST_RANDOM_SKIP_PROB), s.FARM_LIST_RANDOM_SKIP_PROB)
     s.OP_COFFEE_BREAK_PROB = _as_float(g("OP_COFFEE_BREAK_PROB", s.OP_COFFEE_BREAK_PROB), s.OP_COFFEE_BREAK_PROB)

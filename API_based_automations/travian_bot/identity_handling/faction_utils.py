@@ -5,6 +5,8 @@ def get_faction_name(faction_id: int) -> str:
         1: "roman",
         2: "teuton",
         3: "gaul",
+        4: "hun",
+        5: "egyptian",
         6: "egyptian",
         7: "hun"
     }

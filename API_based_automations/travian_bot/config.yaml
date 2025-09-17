@@ -5,15 +5,25 @@ credentials:
   # Optional: Travian build header used by some JSON APIs (HAR: X-Version)
   # Leave empty to omit; set to the value seen in your network tab, e.g., "228.4"
   TRAVIAN_X_VERSION: ''
-cadence:
-  # Minutes to wait between automation cycles (base cadence).
-  WAIT_BETWEEN_CYCLES_MINUTES: 5
-  # Extra random offset in minutes added/subtracted each cycle to avoid patterns.
-  JITTER_MINUTES: 5
-  # Index of the game world in the lobby (0 = first entry shown in lobby).
-  SERVER_SELECTION: 0
-  # Probability (0..1) to skip an entire cycle (human-like idle).
-  SKIP_CYCLE_PROB: 0.0
+
+core_profile:
+  # Basic per-account/per-server knobs – review these first when cloning the bot.
+  SERVER_SELECTION: 1            # lobby index for the right world
+  WAIT_BETWEEN_CYCLES_MINUTES: 5 # base pause between automation cycles
+  JITTER_MINUTES: 5              # random minutes added/subtracted per cycle
+  SKIP_CYCLE_PROB: 0.0           # chance to skip a full cycle for idling
+  TRIBE_HINT: hun                # optional: documentation only, keep in sync with identity.json
+  ESCORT_UNIT_PRIORITY:          # order matters; adjust when you change tribe
+  - t5
+  - t3
+  - t1
+  - t2
+  - t4
+  - t6
+  - t7
+  - t8
+  - t9
+  - t10
 limiter:
   # Enable a hard daily cap on total runtime (spread across blocks).
   ENABLE_CYCLE_LIMITER: false
@@ -31,7 +41,9 @@ limiter:
   REST_MAX_MINUTES: 90
   # Optional quiet windows where cycles are skipped (HH:MM-HH:MM, local time).
   QUIET_WINDOWS:
-  # - "01:00-06:00"
+  - "01:00-06:00"
+  QUIET_WINDOW_RESUME_JITTER_MIN: 90
+  QUIET_WINDOW_RESUME_JITTER_MAX: 300
 logging:
   # Log verbosity and destination directory.
   # DEBUG | INFO | WARNING | ERROR | CRITICAL
@@ -49,6 +61,17 @@ humanizer:
   HUMAN_LONG_PAUSE_MIN: 4.0
   # Longer pause upper bound (seconds).
   HUMAN_LONG_PAUSE_MAX: 7.5
+  # Probability to perform a neutral "lookaround" page visit once the idle timer matures.
+  HUMAN_IDLE_LOOKAROUND_PROB: 0.35
+  HUMAN_IDLE_MIN_INTERVAL: 60
+  HUMAN_IDLE_MAX_INTERVAL: 210
+  HUMAN_IDLE_JITTER_MIN: 0.6
+  HUMAN_IDLE_JITTER_MAX: 1.5
+  HUMAN_SUSPICION_SLEEP_MIN: 120
+  HUMAN_SUSPICION_SLEEP_MAX: 300
+  # Optional explicit list of neutral pages to visit (defaults applied if empty)
+  HUMAN_IDLE_LOOKAROUND_PAGES:
+  #   - /map.php
 operation:
   # Small pauses before/after high-level actions (seconds).
   # Jitter before/after large operations (seconds).
@@ -82,17 +105,6 @@ raiding:
   OASIS_EVENT_DRIVEN_WAIT_ENABLE: true
   # If true, skip farm lists on the first cycle in Full Auto.
   SKIP_FARM_LISTS_FIRST_RUN: false
-  ESCORT_UNIT_PRIORITY:
-  - t5
-  - t3
-  - t1
-  - t2
-  - t4
-  - t6
-  - t7
-  - t8
-  - t9
-  - t10
 
 # Enable autoplan for building a new village following a standard preset.
 NEW_VILLAGE_PRESET_ENABLE: false

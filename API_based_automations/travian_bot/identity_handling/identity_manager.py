@@ -5,6 +5,8 @@ import sys
 # Add the parent directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from identity_handling.identity_helper import get_account_tribe_id
+
 def view_identity():
     """Display the current identity information."""
     try:
@@ -13,7 +15,10 @@ def view_identity():
         
         travian_identity = identity.get("travian_identity", {})
         faction = travian_identity.get("faction", "unknown").title()
-        tribe_id = travian_identity.get("tribe_id", "unknown")
+        try:
+            tribe_id = get_account_tribe_id()
+        except Exception:
+            tribe_id = "unknown"
         
         print("\n👤 Current Identity:")
         print(f"Faction: {faction} (ID: {tribe_id})")

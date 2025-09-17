@@ -15,7 +15,7 @@ from features.farm_lists.farm_list_runner import run_farmlists_for_villages
 from features.raiding.reset_raid_plan import reset_saved_raid_plan
 from features.raiding.setup_interactive_plan import setup_interactive_raid_plan
 from identity_handling.identity_manager import handle_identity_management
-from identity_handling.identity_helper import load_villages_from_identity
+from identity_handling.identity_helper import load_villages_from_identity, get_account_tribe_id
 from features.hero.hero_operations import run_hero_operations as run_hero_ops, print_hero_status_summary
 from features.hero.hero_raiding_thread import run_hero_raiding_thread
 from features.hero.hero_adventure_thread import run_hero_adventure_thread
@@ -188,7 +188,10 @@ def view_identity():
         
         travian_identity = identity.get("travian_identity", {})
         faction = travian_identity.get("faction", "unknown").title()
-        tribe_id = travian_identity.get("tribe_id", "unknown")
+        try:
+            tribe_id = get_account_tribe_id()
+        except Exception:
+            tribe_id = "unknown"
         
         print("\n👤 Current Identity:")
         print(f"Faction: {faction} (ID: {tribe_id})")
@@ -483,9 +486,10 @@ def setup_interactive_raid_plan(api, server_url):
 def run_map_scan(api: TravianAPI):
     """Run map scanning operations."""
     print("\n🗺️ Map Scanning")
-    print("[1] Scan for unoccupied oases")
-    print("[2] View latest scan results")
-    print("[3] Back to main menu")
+    print("[1] Full scan for unoccupied oases")
+    print("[2] Quick scan (small radius)")
+    print("[3] View latest scan results")
+    print("[4] Back to main menu")
     
     choice = input("\nSelect an option: ").strip()
     
@@ -495,6 +499,10 @@ def run_map_scan(api: TravianAPI):
         scan_map_for_oases(api)
         print("✅ Map scan complete!")
     elif choice == "2":
+        from features.map_scanning.scan_map import quick_scan_for_oases
+        quick_scan_for_oases(api)
+        print("✅ Quick scan complete!")
+    elif choice == "3":
         from core.database_helpers import load_latest_unoccupied_oases
         villages = load_villages_from_identity()
         if not villages:
@@ -520,7 +528,7 @@ def run_map_scan(api: TravianAPI):
                 print(f"- Oasis at ({x_str}, {y_str})")
         except (ValueError, IndexError):
             print("❌ Invalid village selection.")
-    elif choice == "3":
+    elif choice == "4":
         return
     else:
         print("❌ Invalid choice.")
@@ -787,6 +795,30 @@ def main():
         
         while True:
             try:
+                quiet_windows = _parse_quiet_windows()
+                quiet_remaining = _in_quiet_window(datetime.now(), quiet_windows) if quiet_windows else None
+                if quiet_remaining:
+                    jitter_min = float(getattr(settings, "QUIET_WINDOW_RESUME_JITTER_MIN", 60.0))
+                    jitter_max = float(getattr(settings, "QUIET_WINDOW_RESUME_JITTER_MAX", 240.0))
+                    if jitter_max < jitter_min:
+                        jitter_max = jitter_min
+                    try:
+                        extra = random.uniform(jitter_min, jitter_max) if jitter_max > 0 else 0.0
+                    except Exception:
+                        extra = 0.0
+                    wait_seconds = max(0.0, quiet_remaining.total_seconds() + extra)
+                    resume_at = datetime.now() + quiet_remaining + timedelta(seconds=extra)
+                    mins = int(wait_seconds // 60)
+                    secs = int(wait_seconds % 60)
+                    msg = (
+                        f"[Main] 💤 Quiet window active. Sleeping {mins}m {secs}s "
+                        f"(resume around {resume_at.strftime('%H:%M')})."
+                    )
+                    print(msg)
+                    _log_info(msg)
+                    time.sleep(wait_seconds)
+                    continue
+
                 _log_info("Loop tick")
                 print(f"\n[Main] Starting cycle at {time.strftime('%H:%M:%S')}")
                 _log_info("Cycle started.")

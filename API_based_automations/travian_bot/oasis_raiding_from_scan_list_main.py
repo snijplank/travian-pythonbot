@@ -5,7 +5,7 @@ from random import uniform
 import time
 
 from identity_handling.login import login
-from identity_handling.identity_helper import load_villages_from_identity
+from identity_handling.identity_helper import load_villages_from_identity, get_account_tribe_id
 from core.travian_api import TravianAPI
 from analysis.number_to_unit_mapping import get_unit_name
 from core.unit_catalog import resolve_label_u
@@ -135,18 +135,11 @@ def run_raid_planner(
 
     # Load faction from identity using the helper function
     try:
-        current_dir = os.path.dirname(__file__)
-        database_dir = os.path.join(current_dir, 'database')
-        identity_path = os.path.join(database_dir, 'identity.json')
-        identity_path = os.path.abspath(identity_path)
-
-        with open(identity_path, "r", encoding="utf-8") as f:
-            identity = json.load(f)
-            tribe_id = identity["travian_identity"]["tribe_id"]
-            faction = get_faction_name(tribe_id)
-            logging.info(f"Detected faction: {faction.title()}")
-    except (FileNotFoundError, KeyError, json.JSONDecodeError) as e:
-        logging.error(f"❌ Error loading identity: {e}")
+        tribe_id = int(get_account_tribe_id())
+        faction = get_faction_name(tribe_id)
+        logging.info(f"Detected faction: {faction.title()}")
+    except Exception as e:
+        logging.error(f"❌ Error resolving faction: {e}")
         return
 
     # Determine which villages to process
@@ -274,20 +267,13 @@ def setup_raid_plan_interactive(api, server_url, selected_village_index=None):
         logging.error("No villages found in identity. Exiting.")
         return
 
-    # Load faction from identity using the helper function
+    # Resolve faction for the interactive setup
     try:
-        current_dir = os.path.dirname(__file__)
-        database_dir = os.path.join(current_dir, '..', 'database')
-        identity_path = os.path.join(database_dir, 'identity.json')
-        identity_path = os.path.abspath(identity_path)
-
-        with open(identity_path, "r", encoding="utf-8") as f:
-            identity = json.load(f)
-            tribe_id = identity["travian_identity"]["tribe_id"]
-            faction = get_faction_name(tribe_id)
-            logging.info(f"Detected faction: {faction.title()}")
-    except (FileNotFoundError, KeyError, json.JSONDecodeError) as e:
-        logging.error(f"❌ Error loading identity: {e}")
+        tribe_id = int(get_account_tribe_id())
+        faction = get_faction_name(tribe_id)
+        logging.info(f"Detected faction: {faction.title()}")
+    except Exception as e:
+        logging.error(f"❌ Error resolving faction: {e}")
         return
 
     # Determine which village to use

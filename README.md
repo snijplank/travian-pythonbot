@@ -59,9 +59,10 @@ Automated farming, oasis raiding, and hero operations for Travian Legends with a
 - `pip install -r requirements.txt`
 
 2) Configure
-- Edit `API_based_automations/travian_bot/config.yaml` and set at least:
+- Edit `API_based_automations/travian_bot/config.yaml`, starting with the `core_profile` block:
   - `TRAVIAN_EMAIL`, `TRAVIAN_PASSWORD`
   - `SERVER_SELECTION` (world index as shown in lobby)
+  - `TRIBE_HINT` / `ESCORT_UNIT_PRIORITY` to match your tribe
   - Optional cadence/learning parameters (see below)
 
 3) Run
@@ -104,7 +105,7 @@ The bot provides several operation modes through an interactive launcher:
 To set up full automation (Option 8), follow these steps in order:
 
 1. **Update Identity** (Option 5)
-   - This ensures your village information is up to date
+   - Saves your villages and current faction label (e.g. `Huns`)
    - Required for both farm lists and oasis raids
 
 2. **Configure Farm Lists** (Option 10)
@@ -132,6 +133,11 @@ To set up full automation (Option 8), follow these steps in order:
 
 All runtime configuration is read from `API_based_automations/travian_bot/config.yaml` (single source of truth). `.env` is not used.
 
+- **Core profile**
+  - `SERVER_SELECTION`: lobby index of your world (0‑based)
+  - `TRIBE_HINT`: documentation helper; keep in sync with your Travian tribe
+  - `ESCORT_UNIT_PRIORITY`: default escort order; adjust when you change tribe
+
 - Core cadence
   - `WAIT_BETWEEN_CYCLES_MINUTES`: minutes between cycles (default 10)
   - `JITTER_MINUTES`: random jitter (default 10)
@@ -158,6 +164,13 @@ All runtime configuration is read from `API_based_automations/travian_bot/config
 - Progressive tasks
   - `PROGRESSIVE_TASKS_ENABLE`: `true|false`
   - `PROGRESSIVE_TASKS_REFRESH_HUD`: `true|false`
+
+## Identity & Tribe Detection
+
+- Identity lives in `API_based_automations/travian_bot/database/identity.json`.
+- The bot now derives the numeric `tribe_id` automatically from the `faction` text using `core/unit_catalog.py::FACTION_TO_TRIBE`.
+- Keep the faction string accurate (e.g. `Huns`, `Romans`); the YAML `TRIBE_HINT` is informational only.
+- If Travian introduces a new tribe, update the mapping table and rerun `setup_identity.py`.
 
 - Reports
   - `PROCESS_REPORTS_IN_AUTOMATION`: `true|false`
