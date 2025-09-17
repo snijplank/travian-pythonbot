@@ -52,9 +52,10 @@ class TravianAPI:
             self._idle_pages = [
                 "/dorf1.php",
                 "/dorf2.php",
-                "/berichte.php",
-                "/nachrichten.php",
-                "/statistics.php?id=5",
+                "/report",
+                "/messages",
+                "/statistics/general",
+                "/statistics/player",
                 "/hero/adventures",
             ]
         self._idle_next_ts = time.time()  # schedule immediately to seed interval
@@ -191,9 +192,10 @@ class TravianAPI:
             pass
         headers = getattr(response, "headers", {}) or {}
         try:
+            token_pattern = re.compile(r"\b(captcha|bot|verify|attention)\b", re.IGNORECASE)
             for key, value in headers.items():
-                text = f"{key}:{value}".lower()
-                if any(token in text for token in ("captcha", "bot", "verify", "attention")):
+                text = f"{key}:{value}"
+                if token_pattern.search(text):
                     suspicious_reasons.append(f"header {key}")
                     suspicious_details.append(f"{key}={value}")
         except Exception:
