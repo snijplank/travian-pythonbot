@@ -1,7 +1,42 @@
 from analysis.tile_analysis import analyze_tile
 import logging
+import time
 from pathlib import Path
 from core.simple_cache import JsonKvCache
+from identity_handling.identity_helper import load_villages_from_identity
+
+_OWN_ALLIANCE_CACHE: dict[str, tuple[float, str | None]] = {}
+
+def _get_own_alliance_tag(api) -> str | None:
+    """Best-effort fetch of the player's alliance tag (cached)."""
+    cache_ttl = 600  # seconds
+    key = getattr(api, "server_url", "default")
+    now = time.time()
+    cached = _OWN_ALLIANCE_CACHE.get(key)
+    if cached:
+        ts, tag = cached
+        if (now - ts) <= cache_ttl:
+            return tag
+
+    try:
+        villages = load_villages_from_identity() or []
+        if not villages:
+            _OWN_ALLIANCE_CACHE[key] = (now, None)
+            return None
+        home = villages[0]
+        vx, vy = int(home.get("x")), int(home.get("y"))
+        html = api.get_tile_html(vx, vy)
+        info = analyze_tile(html, (vx, vy)) or {}
+        owner = info.get("owner_info") or {}
+        alliance = owner.get("alliance")
+        if isinstance(alliance, str):
+            alliance = alliance.strip()
+        _OWN_ALLIANCE_CACHE[key] = (now, alliance)
+        return alliance
+    except Exception as exc:
+        logging.debug(f"[OasisValidator] Failed to resolve own alliance tag: {exc}")
+        _OWN_ALLIANCE_CACHE[key] = (now, None)
+        return None
 
 try:
     from config.config import settings as _cfg
@@ -48,8 +83,20 @@ def is_valid_unoccupied_oasis(api, x, y, distance: float | None = None):
     tile_info = analyze_tile(html, (x, y))
     
     # Must be an unoccupied oasis
-    if tile_info['type'] != 'unoccupied_oasis':
+    tile_type = tile_info.get('type')
+    if tile_type != 'unoccupied_oasis':
         suffix = f" — Distance: {distance:.1f} tiles" if isinstance(distance, (int, float)) else ""
+        if tile_type == 'occupied_oasis':
+            owner_info = tile_info.get('owner_info') or {}
+            owner_alliance = owner_info.get('alliance')
+            if isinstance(owner_alliance, str):
+                owner_alliance = owner_alliance.strip()
+            own_alliance = _get_own_alliance_tag(api)
+            if own_alliance and owner_alliance and owner_alliance.lower() == own_alliance.lower():
+                logging.info(f"Skipping tile at ({x}, {y}) — Occupied by alliance member ({owner_alliance}){suffix}")
+                return False, "friendly_occupied"
+            logging.info(f"Skipping tile at ({x}, {y}) — Oasis occupied (alliance={owner_alliance or 'unknown'}){suffix}")
+            return False, "occupied"
         logging.info(f"Skipping tile at ({x}, {y}) — Not an unoccupied oasis{suffix}")
         return False, "not_unoccupied"
         

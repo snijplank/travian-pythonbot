@@ -11,13 +11,22 @@ from features.build import new_village_preset as preset
 
 
 RESOURCE_TYPES = ("wood", "clay", "iron", "crop")
-GID_TO_TYPE = {
+_DEFAULT_GID_MAP = {
     1: "wood",
     2: "clay",
     3: "iron",
     4: "crop",
 }
+
+if not hasattr(preset, "GID_TO_TYPE") or not getattr(preset, "GID_TO_TYPE"):
+    try:
+        preset.GID_TO_TYPE = dict(_DEFAULT_GID_MAP)
+    except Exception:
+        pass
+
+GID_TO_TYPE = getattr(preset, "GID_TO_TYPE", dict(_DEFAULT_GID_MAP))
 PROFILE_CONFIG_PATH = Path(__file__).resolve().parents[2] / "database" / "resource_fields" / "village_profiles.json"
+STATE_TRACK_PATH = Path(__file__).resolve().parents[2] / "database" / "resource_fields" / "last_upgrade_state.json"
 
 DEFAULT_PROFILE_DEFS: dict[str, dict[str, Any]] = {
     "balanced": {
@@ -28,6 +37,7 @@ DEFAULT_PROFILE_DEFS: dict[str, dict[str, Any]] = {
         "max_actions_per_cycle": 1,
         "queue_allowance": 0,
         "min_level_gap": 1,
+        "cooldown_seconds": 900,
     },
     "crop_focus": {
         "description": "Zorg dat cropvelden voorop lopen zonder de rest te verwaarlozen.",
@@ -37,6 +47,7 @@ DEFAULT_PROFILE_DEFS: dict[str, dict[str, Any]] = {
         "max_actions_per_cycle": 1,
         "queue_allowance": 0,
         "min_level_gap": 1,
+        "cooldown_seconds": 900,
     },
     "wood_clay": {
         "description": "Boost hout en klei vroeg in het spel; ijzer/crop volgen later.",
@@ -46,6 +57,7 @@ DEFAULT_PROFILE_DEFS: dict[str, dict[str, Any]] = {
         "max_actions_per_cycle": 1,
         "queue_allowance": 0,
         "min_level_gap": 1,
+        "cooldown_seconds": 900,
     },
 }
 
@@ -59,6 +71,7 @@ class ProfileDefinition:
     max_actions_per_cycle: int
     queue_allowance: int
     min_level_gap: int
+    cooldown_seconds: int
     description: str | None = None
 
     def clone(self) -> "ProfileDefinition":
@@ -70,6 +83,7 @@ class ProfileDefinition:
             max_actions_per_cycle=self.max_actions_per_cycle,
             queue_allowance=self.queue_allowance,
             min_level_gap=self.min_level_gap,
+            cooldown_seconds=self.cooldown_seconds,
             description=self.description,
         )
 
@@ -135,6 +149,22 @@ class ProfileDefinition:
         if "min_level_gap" in data:
             try:
                 updated.min_level_gap = max(0, int(data["min_level_gap"]))
+            except Exception:
+                pass
+
+        if "cooldown_seconds" in data:
+            try:
+                updated.cooldown_seconds = max(0, int(data["cooldown_seconds"]))
+            except Exception:
+                pass
+        elif "min_seconds_between_actions" in data:
+            try:
+                updated.cooldown_seconds = max(0, int(data["min_seconds_between_actions"]))
+            except Exception:
+                pass
+        elif "cooldown" in data:
+            try:
+                updated.cooldown_seconds = max(0, int(data["cooldown"]))
             except Exception:
                 pass
 
@@ -204,6 +234,7 @@ def _default_profile_definitions(include_crop: bool) -> dict[str, ProfileDefinit
             max_actions_per_cycle=int(data.get("max_actions_per_cycle", 1)),
             queue_allowance=int(data.get("queue_allowance", 0)),
             min_level_gap=int(data.get("min_level_gap", 1)),
+            cooldown_seconds=int(data.get("cooldown_seconds", 0)),
             description=data.get("description"),
         )
     return definitions
@@ -245,20 +276,71 @@ def _load_profile_registry(include_crop: bool) -> ProfileRegistry:
     return ProfileRegistry(default_profile=default_profile, profiles=base_defs, overrides=village_cfg)
 
 
+def _load_runtime_state() -> dict[str, dict[str, float]]:
+    if not STATE_TRACK_PATH.exists():
+        return {}
+    try:
+        data = json.loads(STATE_TRACK_PATH.read_text(encoding="utf-8")) or {}
+        return data if isinstance(data, dict) else {}
+    except Exception as exc:
+        logging.warning("[ResourceBalancer] Kon runtime-state niet lezen: %s", exc)
+        return {}
+
+
+def _save_runtime_state(state: Mapping[str, dict[str, float]]) -> None:
+    try:
+        STATE_TRACK_PATH.parent.mkdir(parents=True, exist_ok=True)
+        STATE_TRACK_PATH.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+    except Exception as exc:
+        logging.warning("[ResourceBalancer] Kon runtime-state niet opslaan: %s", exc)
+
+
+def _format_remaining(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes, secs = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}m {secs}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h {minutes}m"
+
+
 def _collect_fields(api, allowed_types: Iterable[str]) -> list[tuple[str, int, int]]:
     allowed = [rtype for rtype in allowed_types if rtype in RESOURCE_TYPES]
     if not allowed:
         allowed = list(RESOURCE_TYPES)
 
+    gid_map = getattr(preset, "GID_TO_TYPE", None) or globals().get("GID_TO_TYPE") or dict(_DEFAULT_GID_MAP)
+
     fields: list[tuple[str, int, int]] = []
     snapshot = preset._snapshot_resource_field_levels(api)
-    if snapshot:
+    snapshot_fields = []
+    if isinstance(snapshot, dict):
+        snapshot_fields = snapshot.get("fields") or []
+    elif isinstance(snapshot, (list, tuple)):
+        snapshot_fields = snapshot
+
+    if snapshot_fields:
         allowed_set = set(allowed)
-        for slot_id, gid, level in snapshot:
-            rtype = GID_TO_TYPE.get(gid)
+        for item in snapshot_fields:
+            try:
+                if isinstance(item, Mapping):
+                    slot_id = int(item.get("slot"))
+                    gid = int(item.get("gid"))
+                    level = int(item.get("level"))
+                else:
+                    slot_id, gid, level = item[:3]
+                    slot_id = int(slot_id)
+                    gid = int(gid)
+                    level = int(level)
+            except Exception:
+                continue
+            rtype = gid_map.get(gid)
             if rtype and rtype in allowed_set:
-                fields.append((rtype, slot_id, int(level)))
-        return fields
+                fields.append((rtype, slot_id, level))
+        if fields:
+            return fields
 
     logging.debug("[ResourceBalancer] Snapshot empty; fallback naar individuele slot-scan.")
     for rtype in allowed:
@@ -480,6 +562,9 @@ def run_resource_balancer_cycle(api, include_crop: bool = True) -> list[tuple[st
         logging.info("[ResourceBalancer] Geen dorpen in identity; niets te doen.")
         return []
 
+    runtime_state = _load_runtime_state()
+    state_dirty = False
+    now = time.time()
     results: list[tuple[str, bool, str, str]] = []
     for village in villages:
         village_id = village.get("village_id")
@@ -506,6 +591,24 @@ def run_resource_balancer_cycle(api, include_crop: bool = True) -> list[tuple[st
         if profile.max_actions_per_cycle <= 0:
             results.append((str(village_id), False, "Profiel staat ingesteld op 0 upgrades per cycle.", village_name))
             continue
+
+        state_key = str(village_id)
+        now = time.time()
+        last_info = runtime_state.get(state_key)
+        last_ts = 0.0
+        if isinstance(last_info, Mapping):
+            try:
+                last_ts = float(last_info.get("last_upgrade_ts", 0.0))
+            except Exception:
+                last_ts = 0.0
+        if profile.cooldown_seconds > 0 and last_ts > 0:
+            elapsed = now - last_ts
+            if elapsed < profile.cooldown_seconds:
+                remaining = profile.cooldown_seconds - elapsed
+                msg = f"Wachttijd actief; probeer later opnieuw ({_format_remaining(remaining)})."
+                prefixed = f"[{profile.name}] {msg}"
+                results.append((state_key, False, prefixed, village_name))
+                continue
 
         try:
             resources, queue_depth = _load_village_state(api)
@@ -552,6 +655,8 @@ def run_resource_balancer_cycle(api, include_crop: bool = True) -> list[tuple[st
             message = msg
             if ok:
                 success = True
+                runtime_state[state_key] = {"last_upgrade_ts": time.time()}
+                state_dirty = True
                 break
             # Abort further attempts if there is nothing meaningful left to try
             lowered = msg.lower()
@@ -562,5 +667,8 @@ def run_resource_balancer_cycle(api, include_crop: bool = True) -> list[tuple[st
             _human_pause()
         prefixed_message = f"[{profile.name}] {message}"
         results.append((str(village_id), success, prefixed_message, village_name))
+
+    if state_dirty:
+        _save_runtime_state(runtime_state)
 
     return results

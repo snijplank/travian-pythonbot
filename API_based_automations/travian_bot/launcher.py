@@ -789,7 +789,7 @@ def resource_balancer_menu(api: TravianAPI):
 ⚒️ Resource Field Balancer
 Config file: {cfg_rel}
 [1] Toggle automation (currently: {status})
-[2] Toggle grain inclusion (currently: {grain})
+[2] Toggle grain inclusion (currently: {grain_txt})
 [3] Run one balancing pass now
 [4] Show configured village profiles
 [5] Back to main menu

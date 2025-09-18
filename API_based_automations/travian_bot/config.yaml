@@ -1,19 +1,14 @@
 credentials:
-  # Credentials used for lobby login (kept locally; do not commit secrets to VCS).
   TRAVIAN_EMAIL: michaelsnijder@hotmail.com
   TRAVIAN_PASSWORD: Sjaaktrekhaak24
-  # Optional: Travian build header used by some JSON APIs (HAR: X-Version)
-  # Leave empty to omit; set to the value seen in your network tab, e.g., "228.4"
   TRAVIAN_X_VERSION: ''
-
 core_profile:
-  # Basic per-account/per-server knobs – review these first when cloning the bot.
-  SERVER_SELECTION: 1            # lobby index for the right world
-  WAIT_BETWEEN_CYCLES_MINUTES: 5 # base pause between automation cycles
-  JITTER_MINUTES: 5              # random minutes added/subtracted per cycle
-  SKIP_CYCLE_PROB: 0.0           # chance to skip a full cycle for idling
-  TRIBE_HINT: hun                # optional: documentation only, keep in sync with identity.json
-  ESCORT_UNIT_PRIORITY:          # order matters; adjust when you change tribe
+  SERVER_SELECTION: 1
+  WAIT_BETWEEN_CYCLES_MINUTES: 5
+  JITTER_MINUTES: 5
+  SKIP_CYCLE_PROB: 0.0
+  TRIBE_HINT: hun
+  ESCORT_UNIT_PRIORITY:
   - t5
   - t3
   - t1
@@ -25,43 +20,27 @@ core_profile:
   - t9
   - t10
 limiter:
-  # Enable a hard daily cap on total runtime (spread across blocks).
   ENABLE_CYCLE_LIMITER: false
-  # Maximum minutes per day the bot may be active.
   DAILY_MAX_RUNTIME_MINUTES: 600
-  # Split the day into N blocks; sleeps between blocks to reduce bursts.
   DAILY_BLOCKS: 3
-  # Add variance to the daily cap (e.g., 0.1 = ±10%).
   DAILY_VARIANCE_PCT: 0.0
-  # If >0, override block size with random minutes in this range.
   BLOCK_SIZE_MIN: 45
   BLOCK_SIZE_MAX: 200
-  # Random rest minutes between blocks (inclusive).
   REST_MIN_MINUTES: 30
   REST_MAX_MINUTES: 90
-  # Optional quiet windows where cycles are skipped (HH:MM-HH:MM, local time).
   QUIET_WINDOWS:
-  - "01:00-06:00"
+  - 01:00-06:00
   QUIET_WINDOW_RESUME_JITTER_MIN: 90
   QUIET_WINDOW_RESUME_JITTER_MAX: 300
 logging:
-  # Log verbosity and destination directory.
-  # DEBUG | INFO | WARNING | ERROR | CRITICAL
   LOG_LEVEL: DEBUG
   LOG_DIR: logs
 humanizer:
-  # Per-request think-time and occasional longer breaks (seconds).
-  # Lower bound for per-request think time (seconds).
   HUMAN_MIN_DELAY: 0.8
-  # Upper bound for per-request think time (seconds).
   HUMAN_MAX_DELAY: 2.8
-  # After this many requests, force a longer pause.
   HUMAN_LONG_PAUSE_EVERY: 6
-  # Longer pause lower bound (seconds).
   HUMAN_LONG_PAUSE_MIN: 4.0
-  # Longer pause upper bound (seconds).
   HUMAN_LONG_PAUSE_MAX: 7.5
-  # Probability to perform a neutral "lookaround" page visit once the idle timer matures.
   HUMAN_IDLE_LOOKAROUND_PROB: 0.35
   HUMAN_IDLE_MIN_INTERVAL: 60
   HUMAN_IDLE_MAX_INTERVAL: 210
@@ -69,56 +48,32 @@ humanizer:
   HUMAN_IDLE_JITTER_MAX: 1.5
   HUMAN_SUSPICION_SLEEP_MIN: 120
   HUMAN_SUSPICION_SLEEP_MAX: 300
-  # Optional explicit list of neutral pages to visit (defaults applied if empty)
-  HUMAN_IDLE_LOOKAROUND_PAGES:
-  #   - /map.php
+  HUMAN_IDLE_LOOKAROUND_PAGES: null
 operation:
-  # Small pauses before/after high-level actions (seconds).
-  # Jitter before/after large operations (seconds).
   OP_JITTER_MIN_SEC: 0.7
   OP_JITTER_MAX_SEC: 2.5
-  # Probability (0..1) to insert a coffee break between cycles.
   OP_COFFEE_BREAK_PROB: 0.1
   OP_COFFEE_BREAK_MIN_MINUTES: 2
   OP_COFFEE_BREAK_MAX_MINUTES: 6
 map_and_farms:
-  # Neutral page views and farm-list subset selection for stealth.
-  # Probability (0..1) to open dorf1/2 before big actions.
   MAPVIEW_PRE_ACTION_PROB: 0.35
-  # Probability (0..1) to open a dorf page before each farm-list launch.
   MAPVIEW_FARM_LIST_PROB: 0.25
-  # Minimum number of farm lists to send this cycle (per village).
   FARM_LIST_SUBSET_MIN: 1
-  # Maximum number of farm lists to send this cycle (per village).
   FARM_LIST_SUBSET_MAX: 3
-  # Randomize village order per cycle.
   SHUFFLE_VILLAGE_ORDER: true
-  # Chance (0..1) to skip farm lists for a village this cycle.
   FARM_LIST_RANDOM_SKIP_PROB: 0.15
 raiding:
-  # Farm-list behavior and escort priority (t1..t10 for current tribe).
-  # Independent module toggles
   EMPTY_OASIS_RAIDER_ENABLE: true
   HERO_OASIS_CLEAR_ENABLE: true
   FARM_LIST_RAIDER_ENABLE: true
-  # Prefer event-driven wake (sleep until next oasis due) over fixed cycle wait
   OASIS_EVENT_DRIVEN_WAIT_ENABLE: true
-  # If true, skip farm lists on the first cycle in Full Auto.
   SKIP_FARM_LISTS_FIRST_RUN: false
-
-# Enable autoplan for building a new village following a standard preset.
 NEW_VILLAGE_PRESET_ENABLE: false
 learning:
-  # Enable/disable adaptive multipliers based on rally overview feedback.
   LEARNING_ENABLE: true
-  # Per-oasis escort multiplier learning and thresholds.
-  # Lower bound for per-oasis escort multiplier.
   LEARNING_MIN_MUL: 0.8
-  # Upper bound for per-oasis escort multiplier.
   LEARNING_MAX_MUL: 2.5
-  # If losses <= LOW → nudge multiplier down.
   LEARNING_LOSS_THRESHOLD_LOW: 0.2
-  # If losses > HIGH → nudge multiplier up.
   LEARNING_LOSS_THRESHOLD_HIGH: 0.5
   LEARNING_STEP_UP_ON_LOST: 0.25
   LEARNING_STEP_UP_ON_HIGH_LOSS: 0.1
@@ -126,73 +81,45 @@ learning:
   LEARNING_PAUSE_ON_LOSS_SEC: 3600
   LEARNING_PRIORITY_RETRY_SEC: 300
   PROCESS_RALLY_RETURNS: true
-  # Rally overview based learning (matching tolerance + timeout)
   RALLY_MATCH_TOLERANCE_SEC: 120
   RALLY_RETURN_TIMEOUT_SEC: 900
-
 attack_detector:
-  # OCR-based incoming-attack detector (Discord webhook notifications).
-  # Turn the detector ON/OFF (requires Discord webhook).
   ATTACK_DETECTOR_ENABLE: true
-  # Discord webhook URL to send alerts to; leave empty to disable.
   ATTACK_DETECTOR_DISCORD_WEBHOOK: https://discord.com/api/webhooks/1414390047721127946/ff-OZaV763t5HpeuNNK-knHAn6xv1U6dT_WgrWimh_0mFACspXr3-cuT82npPBEWl2_R
-  # Base polling interval (seconds) for screen checks.
   ATTACK_DETECTOR_INTERVAL_BASE: 2.0
-  # Random extra seconds added to the base interval.
   ATTACK_DETECTOR_INTERVAL_JITTER: 6.0
-  # Minimum seconds to wait between two notifications.
   ATTACK_DETECTOR_COOLDOWN_SEC: 3600
-  # OCR languages (add your UI language for better detection).
   ATTACK_DETECTOR_OCR_LANGS:
   - en
-  # Use GPU for OCR if available (True/False).
   ATTACK_DETECTOR_GPU: false
-  # Attach a screenshot to Discord alerts when possible (requires GUI).
   ATTACK_DETECTOR_SEND_SCREENSHOT: true
-  # Press a refresh hotkey before reading the screen (requires GUI).
   ATTACK_DETECTOR_USE_HOTKEYS: false
-  # Examples: f5, ctrl+r, command+r
   ATTACK_DETECTOR_REFRESH_COMBO: ''
-
 hero_adventures:
-  # Automatically start hero adventures as soon as they appear.
   HERO_ADVENTURE_ENABLE: true
-  # Minimal hero health percentage to allow adventures.
   HERO_ADVENTURE_MIN_HEALTH: 40
-  # Skip adventures longer than this many minutes (0 = no limit).
   HERO_ADVENTURE_MAX_DURATION_MIN: 180
-  # Allow adventures flagged as dangerous/hard.
   HERO_ADVENTURE_ALLOW_DANGER: true
-  # Background watcher poll interval and random jitter (seconds).
   HERO_ADVENTURE_POLL_INTERVAL_SEC: 90
   HERO_ADVENTURE_RANDOM_JITTER_SEC: 45
-
 progressive_tasks:
-  # Automatically collect progressive task rewards per village.
   PROGRESSIVE_TASKS_ENABLE: false
-  # Refresh hero HUD after each collect (matches UI behavior).
   PROGRESSIVE_TASKS_REFRESH_HUD: true
-
 oasis_scheduler:
-  # Target interval between raids per oasis (seconds). Aim ~10 minutes.
   OASIS_TARGET_INTERVAL_MIN_SEC: 600
-  # Random jitter added/subtracted to target interval (seconds).
   OASIS_INTERVAL_JITTER_SEC: 60
-  # Cooldown after a LOST report before raiding the same target again (seconds).
   OASIS_COOLDOWN_ON_LOST_SEC: 1800
-  # If true, skip the entire oasis loop early when troop bank cannot satisfy any range.
   OASIS_EARLY_EXIT_IF_INSUFFICIENT: true
-  # Cap the number of "Not enough ..." skips per cycle to reduce noise and requests.
   OASIS_MAX_INSUFFICIENT_SKIPS: 10
-  # If true, always pick the single nearest oasis and attack it on its own 10-min cadence.
   OASIS_ALWAYS_NEAREST_ONLY: false
-
 building_guard:
-  # Wait/retry building upgrades when resources are insufficient or queue is busy.
   BUILD_GUARD_ENABLE: true
   BUILD_GUARD_MAX_RETRIES: 5
   BUILD_GUARD_WAIT_MIN_SEC: 60
   BUILD_GUARD_WAIT_MAX_SEC: 180
-  # Auto-remediate specific blockers
-  BUILD_FREECROP_GUARD_ENABLE: true   # upgrade a cropland once when free crop is too low
-  BUILD_STORAGE_GUARD_ENABLE: true    # upgrade granary/warehouse once when storage is full
+  BUILD_FREECROP_GUARD_ENABLE: true
+  BUILD_STORAGE_GUARD_ENABLE: true
+resource_balancer:
+  RESOURCE_FIELD_BALANCER_ENABLE: false
+  RESOURCE_FIELD_BALANCER_INCLUDE_GRAIN: true
+RESOURCE_FIELD_BALANCER_ENABLE: true
