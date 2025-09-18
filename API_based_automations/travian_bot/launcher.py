@@ -21,6 +21,7 @@ from features.hero.hero_operations import run_hero_operations as run_hero_ops, p
 from features.hero.hero_raiding_thread import run_hero_raiding_thread
 from features.hero.hero_adventure_thread import run_hero_adventure_thread
 from features.build.new_village_preset import run_new_village_preset_if_new
+from features.build.resource_balancer import PROFILE_CONFIG_PATH, run_resource_balancer_cycle
 from features.hero.hero_adventure import maybe_start_adventure
 from core.hero_manager import HeroManager
 from datetime import datetime, timedelta, time as dtime
@@ -771,6 +772,106 @@ def tools_menu(api: TravianAPI):
         else:
             print("❌ Invalid option.")
 
+
+def resource_balancer_menu(api: TravianAPI):
+    """Toggle and run the resource field balancer."""
+    while True:
+        enabled = bool(getattr(settings, "RESOURCE_FIELD_BALANCER_ENABLE", False))
+        include_grain = bool(getattr(settings, "RESOURCE_FIELD_BALANCER_INCLUDE_GRAIN", True))
+        status = "ENABLED" if enabled else "DISABLED"
+        grain_txt = "including grain" if include_grain else "excluding grain"
+        try:
+            cfg_rel = PROFILE_CONFIG_PATH.relative_to(Path(__file__).resolve().parent)
+        except Exception:
+            cfg_rel = PROFILE_CONFIG_PATH
+        print(
+            f"""
+⚒️ Resource Field Balancer
+Config file: {cfg_rel}
+[1] Toggle automation (currently: {status})
+[2] Toggle grain inclusion (currently: {grain})
+[3] Run one balancing pass now
+[4] Show configured village profiles
+[5] Back to main menu
+"""
+        )
+        sel = input("Select an option: ").strip()
+        if sel == "1":
+            new_val = not enabled
+            _write_config_yaml({"RESOURCE_FIELD_BALANCER_ENABLE": new_val})
+            try:
+                settings.RESOURCE_FIELD_BALANCER_ENABLE = new_val
+            except Exception:
+                pass
+            print(f"Resource balancer is now {'ENABLED' if new_val else 'DISABLED'}.")
+        elif sel == "2":
+            new_val = not include_grain
+            _write_config_yaml({"RESOURCE_FIELD_BALANCER_INCLUDE_GRAIN": new_val})
+            try:
+                settings.RESOURCE_FIELD_BALANCER_INCLUDE_GRAIN = new_val
+            except Exception:
+                pass
+            include_grain = new_val
+            grain_txt = "including grain" if include_grain else "excluding grain"
+            print(f"Balancing will now run {grain_txt}.")
+        elif sel == "3":
+            try:
+                include_grain = bool(getattr(settings, "RESOURCE_FIELD_BALANCER_INCLUDE_GRAIN", True))
+                results = run_resource_balancer_cycle(api, include_crop=include_grain)
+                if not results:
+                    print("ℹ️ Geen dorpen of acties uitgevoerd.")
+                else:
+                    for _vid, success, message, vname in results:
+                        prefix = "✅" if success else "ℹ️"
+                        print(f"{prefix} {vname}: {message}")
+                    print("⚒️ Balancer-run voltooid.")
+            except Exception as exc:
+                print(f"❌ Balancer failed: {exc}")
+        elif sel == "4":
+            try:
+                if not PROFILE_CONFIG_PATH.exists():
+                    print(f"ℹ️ Config file ontbreekt nog ({cfg_rel}). Maak het bestand aan om profielen vast te leggen.")
+                    continue
+                data = json.loads(PROFILE_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+            except Exception as exc:
+                print(f"❌ Kon profielenconfig niet lezen: {exc}")
+                continue
+
+            default_profile = str(data.get("default_profile") or "balanced")
+            print(f"\n📋 Village profiles (default={default_profile}):")
+            profiles = data.get("profiles") or {}
+            if profiles:
+                print("  Profielen met overrides:")
+                for name in sorted(profiles):
+                    print(f"   - {name}")
+            else:
+                print("  Geen profiel overrides gedefinieerd (gebruik defaults).")
+
+            villages_cfg = data.get("villages") or {}
+            if not villages_cfg:
+                print("  Geen dorpsspecifieke instellingen gevonden.")
+            else:
+                print("  Dorpen:")
+                for vid, cfg in villages_cfg.items():
+                    profile_name = default_profile
+                    extras: list[str] = []
+                    if isinstance(cfg, dict):
+                        profile_name = str(cfg.get("profile") or default_profile)
+                        if "max_actions_per_cycle" in cfg:
+                            extras.append(f"max={cfg['max_actions_per_cycle']}")
+                        if "min_resource_buffer" in cfg:
+                            extras.append("buffer=custom")
+                    else:
+                        extras.append("config onjuist")
+                    suffix = f" ({', '.join(extras)})" if extras else ""
+                    print(f"   - {vid}: {profile_name}{suffix}")
+            print(f"  → Wijzigingen? Bewerk {cfg_rel} en herstart/pas optie 3 toe om te testen.")
+        elif sel == "5":
+            return
+        else:
+            print("❌ Invalid option.")
+
+
 def run_hero_operations(api: TravianAPI):
     """Run hero-specific operations including checking status and sending to suitable oases."""
     run_hero_ops(api)
@@ -896,6 +997,8 @@ def main():
     print("12) Tools & Detectors")
     print("13) Reset / Clean Install")
     print("14) Status Snapshot")
+    print("\n🏗️ BUILDING:")
+    print("15) Resource Field Balancer")
 
     print("\n" + "="*40)
 
@@ -1293,6 +1396,19 @@ def main():
                     run_empty_oasis_raids(api, server_url, multi_village=True)
                 first_cycle = False
 
+                if bool(getattr(settings, "RESOURCE_FIELD_BALANCER_ENABLE", False)):
+                    try:
+                        include_grain = bool(getattr(settings, "RESOURCE_FIELD_BALANCER_INCLUDE_GRAIN", True))
+                        results = run_resource_balancer_cycle(api, include_crop=include_grain)
+                        if results:
+                            for _vid, success, message, vname in results:
+                                icon = "✅" if success else "ℹ️"
+                                print(f"[ResourceBalancer] {icon} {vname}: {message}")
+                        else:
+                            print("[ResourceBalancer] Geen dorpen/acties uitgevoerd.")
+                    except Exception as _bal_e:
+                        _log_warn(f"Resource balancer failed: {_bal_e}")
+
                 # Hero summary + record to metrics
                 _log_info("Fetching hero status summary…")
                 hero_manager = HeroManager(api)
@@ -1566,6 +1682,8 @@ def main():
         run_hero_raiding_thread(api)
     elif choice == "12":
         tools_menu(api)
+    elif choice == "15":
+        resource_balancer_menu(api)
     else:
         print("❌ Invalid choice.")
 

@@ -1,0 +1,30 @@
+{
+  "default_profile": "balanced",
+  "profiles": {
+    "balanced": {
+      "min_resource_buffer": {
+        "wood": 900,
+        "clay": 900,
+        "iron": 900,
+        "crop": 900
+      }
+    },
+    "crop_focus": {
+      "min_resource_buffer": {
+        "wood": 800,
+        "clay": 800,
+        "iron": 800,
+        "crop": 1400
+      }
+    }
+  },
+  "villages": {
+    "33462": {
+      "profile": "balanced"
+    },
+    "35803": {
+      "profile": "crop_focus",
+      "max_actions_per_cycle": 1
+    }
+  }
+}

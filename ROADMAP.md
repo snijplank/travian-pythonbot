@@ -55,7 +55,7 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
 
 ## 4.1 🏗️ Dorpbeheer (nieuw)
 **Doel: basisproductie en militaire opbouw automatiseren, per dorp.**
-- [ ] Resourcevelden upgraden (per dorp, per profiel)
+- [x] Resourcevelden upgraden (per dorp, per profiel)
   - Profielen: Balanced | Crop‑focus | Wood/Clay early game
   - Respecteer bouwwachttijden; vermijd wachtrijen botsachtig snel te vullen
   - Budgetbewust: minimum resourcebuffer + limiet per cycle
