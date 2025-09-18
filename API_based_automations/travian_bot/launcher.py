@@ -5,6 +5,7 @@ import os
 import threading
 import logging
 import sys
+import shutil
 from identity_handling.login import login
 from core.travian_api import TravianAPI
 from core.database_helpers import load_latest_unoccupied_oases
@@ -153,6 +154,100 @@ def _compute_limiter_params():
     rmax = int(getattr(settings, "REST_MAX_MINUTES", 0))
     rest_between_blocks = (rmin, rmax) if (rmax >= rmin > 0) else (0, 0)
     return total, blocks, block_size, rest_between_blocks
+
+
+def _backup_file(path: Path) -> Path | None:
+    if not path.exists():
+        return None
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup = path.with_suffix(path.suffix + f".bak_{ts}")
+    try:
+        shutil.copy2(path, backup)
+        print(f"[Reset] Backup created: {backup}")
+        return backup
+    except Exception as exc:
+        print(f"[Reset] ⚠️ Failed to backup {path.name}: {exc}")
+        return None
+
+
+def _write_json(path: Path, payload) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except Exception as exc:
+        print(f"[Reset] ⚠️ Failed to write {path}: {exc}")
+
+
+def reset_environment() -> None:
+    base_dir = Path(__file__).resolve().parent
+    templates_dir = base_dir / "templates"
+    config_template = templates_dir / "config.template.yaml"
+    identity_template = templates_dir / "identity.template.json"
+    config_path = base_dir / "config.yaml"
+    identity_path = base_dir / "database/identity.json"
+    learning_dir = base_dir / "database/learning"
+    runtime_files = [
+        base_dir / "database/runtime_next_oasis_due.json",
+        base_dir / "database/hero_mission_eta.json",
+    ]
+
+    print("\n⚠️ Reset / Clean Install")
+    print("This will backup the current config/identity and clear learning data.")
+    print("You will need to edit config.yaml and rerun setup_identity afterwards.")
+    confirm = input("Type 'reset' to continue: ").strip().lower()
+    if confirm != "reset":
+        print("[Reset] Aborted.")
+        return
+
+    _backup_file(config_path)
+    _backup_file(identity_path)
+
+    try:
+        if config_template.exists():
+            shutil.copy2(config_template, config_path)
+            print(f"[Reset] Config reset using template: {config_template.name}")
+        else:
+            print("[Reset] ⚠️ Config template missing; keeping existing config.yaml")
+    except Exception as exc:
+        print(f"[Reset] ⚠️ Failed to reset config.yaml: {exc}")
+
+    try:
+        if identity_template.exists():
+            shutil.copy2(identity_template, identity_path)
+            print(f"[Reset] Identity reset using template: {identity_template.name}")
+        else:
+            _write_json(identity_path, {"travian_identity": {"created_at": "", "tribe_id": None, "faction": "", "servers": []}})
+            print("[Reset] Identity template missing; wrote empty identity.json")
+    except Exception as exc:
+        print(f"[Reset] ⚠️ Failed to reset identity.json: {exc}")
+
+    try:
+        learning_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(learning_dir / "raid_targets_stats.json", {})
+        _write_json(learning_dir / "pending_rally.json", [])
+        print("[Reset] Cleared learning store")
+    except Exception as exc:
+        print(f"[Reset] ⚠️ Failed to reset learning data: {exc}")
+
+    for rf in runtime_files:
+        if rf.name.endswith("hero_mission_eta.json"):
+            payload = {"return_epoch": None}
+        else:
+            payload = {}
+        _write_json(rf, payload)
+
+    logs_dir = base_dir / "logs"
+    try:
+        for log_file in logs_dir.glob("*.log*"):
+            log_file.unlink(missing_ok=True)
+        print("[Reset] Cleared log files")
+    except Exception:
+        pass
+
+    print("\n[Reset] Done. Next steps:
+- Update config.yaml with credentials & server selection.
+- Run setup_identity.py to populate identity.json.
+- Restart the bot.\n")
 
 def _parse_quiet_windows() -> list[tuple[dtime,dtime]]:
     out = []
@@ -564,10 +659,15 @@ def main():
     print("10) Identity & Villages")
     print("11) Test Hero Raiding Thread (Standalone)")
     print("12) Tools & Detectors")
-    
+    print("13) Reset / Clean Install")
+
     print("\n" + "="*40)
 
     choice = input("\n👉 Select an option: ").strip()
+
+    if choice == "13":
+        reset_environment()
+        return
 
     # Preflight: show masked email and server index
     try:
