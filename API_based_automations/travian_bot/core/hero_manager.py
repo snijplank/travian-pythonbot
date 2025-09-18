@@ -83,13 +83,41 @@ class HeroManager:
                 timeout=15,
             )
             if response.status_code == 401:
-                logging.warning("[Hero] HUD request returned 401; refreshing session and retrying once.")
-                if self._refresh_session():
-                    response = self.api.session.get(
-                        url,
-                        headers=self.api._headers_ajax("/hero"),
-                        timeout=15,
-                    )
+                logging.warning("[Hero] HUD request returned 401; attempting to refresh Travian headers.")
+                refreshed = False
+                current_x = getattr(self.api, "_x_version", None)
+                refresh_fn = getattr(self.api, "refresh_x_version", None)
+                if callable(refresh_fn):
+                    try:
+                        new_version = refresh_fn()
+                        if new_version:
+                            if current_x != new_version:
+                                logging.info(f"[Hero] X-Version header updated to {new_version}. Retrying HUD request.")
+                            else:
+                                logging.debug("[Hero] X-Version header unchanged after refresh attempt.")
+                        else:
+                            logging.debug("[Hero] X-Version refresh returned no value.")
+                    except Exception as exc:
+                        logging.debug(f"[Hero] X-Version refresh failed: {exc}")
+                    else:
+                        response = self.api.session.get(
+                            url,
+                            headers=self.api._headers_ajax("/hero"),
+                            timeout=15,
+                        )
+                        refreshed = True
+
+                if response.status_code == 401:
+                    if refreshed:
+                        logging.warning("[Hero] HUD request still unauthorized after X-Version refresh; retrying with session ping.")
+                    else:
+                        logging.warning("[Hero] HUD request still unauthorized; refreshing session and retrying once.")
+                    if self._refresh_session():
+                        response = self.api.session.get(
+                            url,
+                            headers=self.api._headers_ajax("/hero"),
+                            timeout=15,
+                        )
                 if response.status_code == 401:
                     logging.warning("[Hero] HUD request still unauthorized after refresh. Skipping hero update this cycle.")
                     return None

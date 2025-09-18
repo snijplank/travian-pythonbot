@@ -250,6 +250,145 @@ def display_status_snapshot() -> None:
     print("===========================\n")
 
 
+def _load_identity_servers() -> dict[str, list[dict]]:
+    path = Path(__file__).resolve().parent / "database/identity.json"
+    data = _load_json(path, {}) or {}
+    servers = data.get("travian_identity", {}).get("servers", [])
+    mapping: dict[str, list[dict]] = {}
+    for server in servers:
+        url = str(server.get("server_url") or server.get("server_name") or "").strip()
+        if url:
+            mapping[url.rstrip('/')] = server.get("villages", []) or []
+    return mapping
+
+
+def _parse_coord_key(key: str) -> tuple[int, int] | None:
+    try:
+        key = key.strip()
+        if key.startswith('(') and key.endswith(')'):
+            key = key[1:-1]
+        x_str, y_str = [part.strip() for part in key.split(',')]
+        return int(x_str), int(y_str)
+    except Exception:
+        return None
+
+
+def display_raid_plan_stats() -> None:
+    base_dir = Path(__file__).resolve().parent
+    raid_plan_dir = base_dir / "database/raid_plans"
+    learning_path = base_dir / "database/learning/raid_targets_stats.json"
+    learning_store = _load_json(learning_path, {}) or {}
+    servers = _load_identity_servers()
+
+    plan_files = sorted(raid_plan_dir.glob("raid_plan_village_*.json"))
+    if not plan_files:
+        print("\n❌ No raid plan files found in database/raid_plans.")
+        return
+
+    if not learning_store:
+        print("\n⚠️ Learning store empty (no stats yet). Showing plan metadata only.")
+
+    print("\n===== RAID PLAN STATS =====")
+    now = time.time()
+
+    for path in plan_files:
+        try:
+            plan = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(f"\n{path.name}: failed to load ({exc})")
+            continue
+
+        server_url = str(plan.get("server") or "").rstrip('/')
+        village_index = int(plan.get("village_index", 0))
+        max_dist = int(plan.get("max_raid_distance", 60))
+        villages = servers.get(server_url, [])
+        village_info = villages[village_index] if 0 <= village_index < len(villages) else None
+        village_name = village_info.get("village_name") if village_info else f"IDX {village_index}"
+        vx = int(village_info.get("x")) if village_info else 0
+        vy = int(village_info.get("y")) if village_info else 0
+
+        print(f"\n📌 {path.name} — {village_name} ({vx}|{vy}) [max {max_dist} tiles]")
+
+        summary = {
+            "targets": 0,
+            "attempts": 0,
+            "successes": 0,
+            "failures": 0,
+            "loot": {"wood": 0, "clay": 0, "iron": 0, "crop": 0, "total": 0},
+            "avg_loss_pct": [],
+        }
+        details = []
+
+        for coord_key, entry in learning_store.items():
+            coord = _parse_coord_key(coord_key)
+            if coord is None:
+                continue
+            dx = abs(coord[0] - vx)
+            dy = abs(coord[1] - vy)
+            distance = (dx ** 2 + dy ** 2) ** 0.5
+            if distance > max_dist:
+                continue
+
+            attempts = int(entry.get("attempts", 0) or 0)
+            successes = int(entry.get("successes", 0) or 0)
+            failures = int(entry.get("failures", attempts - successes))
+            loot = entry.get("total_loot") or {}
+            loss = entry.get("avg_loss_pct")
+
+            summary["targets"] += 1
+            summary["attempts"] += attempts
+            summary["successes"] += successes
+            summary["failures"] += failures
+            if isinstance(loss, (int, float)):
+                summary["avg_loss_pct"].append(float(loss))
+            for resource in ("wood", "clay", "iron", "crop", "total"):
+                summary["loot"][resource] += int(loot.get(resource, 0) or 0)
+
+            last = entry.get("last") or {}
+            last_ts = last.get("ts") or entry.get("last_ts")
+            pause_until = entry.get("pause_until")
+            priority_until = entry.get("priority_until")
+
+            detail = {
+                "coord": coord_key,
+                "attempts": attempts,
+                "successes": successes,
+                "failures": failures,
+                "avg_loss": loss,
+                "loot_total": int(loot.get("total", 0) or 0),
+                "last_ts": last_ts,
+                "pause": pause_until,
+                "priority": priority_until,
+            }
+            details.append(detail)
+
+        if summary["targets"] == 0:
+            print("  • No learning data yet for this plan.")
+            continue
+
+        ratio = (summary["successes"] / summary["attempts"]) if summary["attempts"] else 0.0
+        avg_loss = sum(summary["avg_loss_pct"])/len(summary["avg_loss_pct"]) if summary["avg_loss_pct"] else 0.0
+
+        print(f"  Targets with data: {summary['targets']}")
+        print(f"  Raids: {summary['attempts']} total | {summary['successes']} successes | {summary['failures']} failures")
+        print(f"  Success ratio: {ratio*100:.1f}% | Avg loss: {avg_loss*100:.1f}%")
+        print(f"  Loot total: {summary['loot']['total']} (wood={summary['loot']['wood']}, clay={summary['loot']['clay']}, iron={summary['loot']['iron']}, crop={summary['loot']['crop']})")
+
+        details.sort(key=lambda x: x['attempts'], reverse=True)
+        print("  Top targets:")
+        for item in details[:5]:
+            pause_txt = priority_txt = ""
+            if item['pause'] and item['pause'] > now:
+                mins = max(0, int((item['pause'] - now)/60))
+                pause_txt = f", pause {mins}m"
+            if item['priority'] and item['priority'] > now:
+                secs = max(0, int(item['priority'] - now))
+                priority_txt = f", priority {secs}s"
+            print(f"    • {item['coord']} → {item['attempts']} attempts, loot {item['loot_total']}, loss={item['avg_loss'] or 0:.2f}{pause_txt}{priority_txt}")
+        if len(details) > 5:
+            print("    …")
+
+    print("\n===========================\n")
 def _backup_file(path: Path) -> Path | None:
     if not path.exists():
         return None
@@ -338,10 +477,12 @@ def reset_environment() -> None:
     except Exception:
         pass
 
-    print("\n[Reset] Done. Next steps:
-- Update config.yaml with credentials & server selection.
-- Run setup_identity.py to populate identity.json.
-- Restart the bot.\n")
+    print(
+        "\n[Reset] Done. Next steps:\n"
+        "- Update config.yaml with credentials & server selection.\n"
+        "- Run setup_identity.py to populate identity.json.\n"
+        "- Restart the bot.\n"
+    )
 
 def _parse_quiet_windows() -> list[tuple[dtime,dtime]]:
     out = []

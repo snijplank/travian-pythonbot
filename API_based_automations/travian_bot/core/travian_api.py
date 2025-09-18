@@ -314,7 +314,7 @@ class TravianAPI:
         except Exception:
             return []
 
-    def _detect_and_apply_x_version(self) -> str | None:
+    def _detect_and_apply_x_version(self, force: bool = False) -> str | None:
         """Fetch a lightweight page and derive Travian build version (X-Version) from HTML.
 
         Strategy:
@@ -322,13 +322,23 @@ class TravianAPI:
         - Look for gpack/<ver>/ and js?...<ver> patterns
         Applies header globally on the session if found.
         """
-        if getattr(self, "_x_version", ""):
+        current = getattr(self, "_x_version", "") or ""
+        if current and not force:
             # Already set (e.g., from config)
             try:
-                self.session.headers["X-Version"] = self._x_version
+                self.session.headers["X-Version"] = current
             except Exception:
                 pass
-            return self._x_version
+            return current
+
+        previous = current if force else ""
+        if force:
+            # Drop stale header before redetecting
+            try:
+                self.session.headers.pop("X-Version", None)
+            except Exception:
+                pass
+            self._x_version = ""
         pages = ["/dorf1.php", "/hero/adventures", "/tasks", "/dorf2.php"]
         html = ""
         for p in pages:
@@ -343,10 +353,26 @@ class TravianAPI:
                             self.session.headers["X-Version"] = ver
                         except Exception:
                             pass
+                        self._x_version = ver
                         return ver
             except Exception:
                 continue
+        if previous:
+            # Restore previous version if redetection failed
+            try:
+                self.session.headers["X-Version"] = previous
+            except Exception:
+                pass
+            self._x_version = previous
+            return previous
         return None
+
+    def refresh_x_version(self) -> str | None:
+        """Force a re-detection of the Travian build header (X-Version)."""
+        try:
+            return self._detect_and_apply_x_version(force=True)
+        except Exception:
+            return None
 
     # --- Progressive Tasks & Rewards ---
     def get_hero_level(self) -> int | None:
