@@ -156,6 +156,100 @@ def _compute_limiter_params():
     return total, blocks, block_size, rest_between_blocks
 
 
+def _load_json(path: Path, default):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return default
+
+
+def display_status_snapshot() -> None:
+    base_dir = Path(__file__).resolve().parent
+    learning_path = base_dir / "database/learning/raid_targets_stats.json"
+    pendings_path = base_dir / "database/learning/pending_rally.json"
+    runtime_path = base_dir / "database/runtime_next_oasis_due.json"
+    hero_eta_path = base_dir / "database/hero_mission_eta.json"
+
+    learning_store = _load_json(learning_path, {}) or {}
+    pendings = _load_json(pendings_path, []) or []
+    runtime_hint = _load_json(runtime_path, {}) or {}
+    hero_eta = _load_json(hero_eta_path, {}) or {}
+
+    print("\n===== STATUS SNAPSHOT =====")
+
+    total_targets = len(learning_store)
+    now = time.time()
+    paused = []
+    priority = []
+    for key, entry in learning_store.items():
+        try:
+            pause_until = float(entry.get("pause_until", 0) or 0)
+            if pause_until > now:
+                paused.append((key, pause_until))
+        except Exception:
+            pass
+        try:
+            priority_until = float(entry.get("priority_until", 0) or 0)
+            if priority_until > now:
+                priority.append((key, priority_until))
+        except Exception:
+            pass
+
+    print(f"Learning targets: {total_targets}")
+    if paused:
+        paused.sort(key=lambda x: x[1])
+        print(f"  Paused ({len(paused)}):")
+        for key, ts in paused[:5]:
+            mins = max(0, int((ts - now) / 60))
+            print(f"    • {key} (resume in ~{mins} min)")
+        if len(paused) > 5:
+            print("    …")
+    else:
+        print("  Paused: none")
+
+    if priority:
+        priority.sort(key=lambda x: x[1])
+        print(f"  Priority ({len(priority)}):")
+        for key, ts in priority[:5]:
+            secs = max(0, int(ts - now))
+            print(f"    • {key} (expires in ~{secs//60}m{secs%60:02d}s)")
+        if len(priority) > 5:
+            print("    …")
+    else:
+        print("  Priority: none")
+
+    print(f"Pending rally entries: {len(pendings)}")
+    for entry in pendings[:5]:
+        target = entry.get("target", "?")
+        depart = entry.get("depart_epoch")
+        if isinstance(depart, (int, float)):
+            age = max(0, int(now - depart))
+            age_txt = f"{age//60}m{age%60:02d}s ago"
+        else:
+            age_txt = "unknown"
+        print(f"  • {target} (sent {age_txt})")
+    if len(pendings) > 5:
+        print("    …")
+
+    next_due_epoch = runtime_hint.get("next_due_epoch")
+    if isinstance(next_due_epoch, (int, float)) and next_due_epoch > now:
+        remaining = max(0, int(next_due_epoch - now))
+        due_time = datetime.fromtimestamp(next_due_epoch).strftime("%H:%M:%S")
+        print(f"Next oasis due in {remaining//60}m{remaining%60:02d}s (~{due_time})")
+    else:
+        print("Next oasis due: n/a")
+
+    return_epoch = hero_eta.get("return_epoch")
+    if isinstance(return_epoch, (int, float)) and return_epoch > now:
+        remain = max(0, int(return_epoch - now))
+        eta_time = datetime.fromtimestamp(return_epoch).strftime("%H:%M:%S")
+        print(f"Hero return ETA: {remain//60}m{remain%60:02d}s (~{eta_time})")
+    else:
+        print("Hero return ETA: n/a")
+
+    print("===========================\n")
+
+
 def _backup_file(path: Path) -> Path | None:
     if not path.exists():
         return None
@@ -660,6 +754,7 @@ def main():
     print("11) Test Hero Raiding Thread (Standalone)")
     print("12) Tools & Detectors")
     print("13) Reset / Clean Install")
+    print("14) Status Snapshot")
 
     print("\n" + "="*40)
 
@@ -667,6 +762,9 @@ def main():
 
     if choice == "13":
         reset_environment()
+        return
+    if choice == "14":
+        display_status_snapshot()
         return
 
     # Preflight: show masked email and server index
