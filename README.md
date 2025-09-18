@@ -160,6 +160,7 @@ All runtime configuration is read from `API_based_automations/travian_bot/config
   - `LEARNING_STEP_UP_ON_FULL_LOOT`
   - `LEARNING_PAUSE_ON_LOSS_SEC`
   - `LEARNING_PRIORITY_RETRY_SEC`
+  - `LEARNING_PRIORITY_RETRY_SEC`
 - Credentials
   - `TRAVIAN_EMAIL`, `TRAVIAN_PASSWORD`
 
