@@ -22,6 +22,7 @@ from features.hero.hero_raiding_thread import run_hero_raiding_thread
 from features.hero.hero_adventure_thread import run_hero_adventure_thread
 from features.build.new_village_preset import run_new_village_preset_if_new
 from features.build.resource_balancer import PROFILE_CONFIG_PATH, run_resource_balancer_cycle
+from features.logistics.resource_router import run_resource_router_cycle
 from features.hero.hero_adventure import maybe_start_adventure
 from core.hero_manager import HeroManager
 from datetime import datetime, timedelta, time as dtime
@@ -872,6 +873,64 @@ Config file: {cfg_rel}
             print("❌ Invalid option.")
 
 
+def resource_router_menu(api: TravianAPI):
+    """Toggle and run the resource router (marketplace transfers)."""
+    cfg_path = Path(__file__).resolve().parent / "config.yaml"
+    try:
+        cfg_rel = cfg_path.relative_to(Path(__file__).resolve().parent)
+    except Exception:
+        cfg_rel = cfg_path
+
+    while True:
+        enabled = bool(getattr(settings, "RESOURCE_ROUTER_ENABLE", False))
+        status = "ENABLED" if enabled else "DISABLED"
+        print(
+            f"""
+🚚 Resource Router
+Config file: {cfg_rel}
+[1] Toggle automation (currently: {status})
+[2] Run one routing pass now
+[3] Back to main menu
+"""
+        )
+        sel = input("Select an option: ").strip()
+        if sel == "1":
+            new_val = not enabled
+            _write_config_yaml({"RESOURCE_ROUTER_ENABLE": new_val})
+            try:
+                settings.RESOURCE_ROUTER_ENABLE = new_val
+            except Exception:
+                pass
+            print(f"Resource router is now {'ENABLED' if new_val else 'DISABLED'}.")
+        elif sel == "2":
+            original = bool(getattr(settings, "RESOURCE_ROUTER_ENABLE", False))
+            try:
+                if not original:
+                    try:
+                        settings.RESOURCE_ROUTER_ENABLE = True
+                    except Exception:
+                        pass
+                transfers = run_resource_router_cycle(api)
+                if not transfers:
+                    print("ℹ️ Geen verzendingen uitgevoerd.")
+                else:
+                    for _vid, success, message, vname in transfers:
+                        prefix = "✅" if success else "ℹ️"
+                        print(f"{prefix} {vname}: {message}")
+            except Exception as exc:
+                print(f"❌ Router failed: {exc}")
+            finally:
+                if not original:
+                    try:
+                        settings.RESOURCE_ROUTER_ENABLE = original
+                    except Exception:
+                        pass
+        elif sel == "3":
+            return
+        else:
+            print("❌ Invalid option.")
+
+
 def run_hero_operations(api: TravianAPI):
     """Run hero-specific operations including checking status and sending to suitable oases."""
     run_hero_ops(api)
@@ -997,8 +1056,9 @@ def main():
     print("12) Tools & Detectors")
     print("13) Reset / Clean Install")
     print("14) Status Snapshot")
-    print("\n🏗️ BUILDING:")
+    print("\n🏗️ BUILDING & RESOURCES:")
     print("15) Resource Field Balancer")
+    print("16) Resource Router")
 
     print("\n" + "="*40)
 
@@ -1409,6 +1469,16 @@ def main():
                     except Exception as _bal_e:
                         _log_warn(f"Resource balancer failed: {_bal_e}")
 
+                if bool(getattr(settings, "RESOURCE_ROUTER_ENABLE", False)):
+                    try:
+                        transfers = run_resource_router_cycle(api)
+                        if transfers:
+                            for _vid, success, message, vname in transfers:
+                                icon = "✅" if success else "ℹ️"
+                                print(f"[ResourceRouter] {icon} {vname}: {message}")
+                    except Exception as _router_e:
+                        _log_warn(f"Resource router failed: {_router_e}")
+
                 # Hero summary + record to metrics
                 _log_info("Fetching hero status summary…")
                 hero_manager = HeroManager(api)
@@ -1684,6 +1754,8 @@ def main():
         tools_menu(api)
     elif choice == "15":
         resource_balancer_menu(api)
+    elif choice == "16":
+        resource_router_menu(api)
     else:
         print("❌ Invalid choice.")
 

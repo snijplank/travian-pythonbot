@@ -82,10 +82,53 @@ def enqueue_pending_raid(
     _save_pending(data)
 
 
-def _schedule_immediate_retry(ls: LearningStore, target: str, *, village_id: Optional[int] = None) -> None:
+def _schedule_immediate_retry(
+    api,
+    ls: LearningStore,
+    target: str,
+    *,
+    village_id: Optional[int] = None,
+) -> None:
     """Mark a target as due now and update the next-oasis hint after a full-haul return."""
     norm_target = _normalize_key(target)
     if not norm_target:
+        return
+
+    def _coords_from_target(token: str) -> Optional[tuple[int, int]]:
+        match = re.match(r"\((-?\d+)\s*,\s*(-?\d+)\)", token)
+        if not match:
+            return None
+        try:
+            return int(match.group(1)), int(match.group(2))
+        except Exception:
+            return None
+
+    def _is_friendly_occupied(api_obj, token: str) -> bool:
+        coords = _coords_from_target(token)
+        if not coords or api_obj is None:
+            return False
+        try:
+            from analysis.tile_analysis import analyze_tile
+            from features.oasis.validator import _get_own_alliance_tag
+        except Exception:
+            return False
+        x, y = coords
+        try:
+            html = api_obj.get_tile_html(x, y)
+            info = analyze_tile(html, (x, y)) or {}
+            if info.get("type") != "occupied_oasis":
+                return False
+            owner = info.get("owner_info") or {}
+            owner_alliance = str(owner.get("alliance") or "").strip()
+            own = _get_own_alliance_tag(api_obj)
+            if own and owner_alliance and owner_alliance.lower() == own.lower():
+                return True
+        except Exception:
+            return False
+        return False
+
+    if _is_friendly_occupied(api, norm_target):
+        LOG.info("[RallyTracker] Full haul for %s maar oase is vriendelijk bezet; geen immediate retry.", norm_target)
         return
 
     try:
@@ -350,7 +393,7 @@ def process_pending_returns(api, *, verbose: bool = False) -> int:
             info = _apply_learning(ls, item, match, verbose=verbose)
             source = str(item.get("source") or (item.get("meta", {}) if isinstance(item.get("meta"), dict) else {}).get("source") or "oasis").lower()
             if info.get("carry_full") and source == "oasis":
-                _schedule_immediate_retry(ls, match.target, village_id=village_id)
+                _schedule_immediate_retry(api, ls, match.target, village_id=village_id)
             pause_until = info.get("pause_until")
             if pause_until:
                 try:

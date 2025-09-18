@@ -59,13 +59,26 @@ Deze roadmap reflecteert wat af is, wat in gang is gezet en wat logisch is als v
   - Profielen: Balanced | Crop‑focus | Wood/Clay early game
   - Respecteer bouwwachttijden; vermijd wachtrijen botsachtig snel te vullen
   - Budgetbewust: minimum resourcebuffer + limiet per cycle
-- [ ] Gebouwen upgraden (fundamentals)
+- [x] Gebouwen upgraden (fundamentals)
   - Warehouse/Granary bij resource overflow‑dreiging
   - Main Building voor snellere bouw
 - [ ] Troepen trainen per dorp
   - Per dorp een trainingsprofiel (inf/cav mix) + caps per dag/uur
   - Respecteer resource buffers en held‑status (bij lage health minder training)
   - Queue awareness: detecteer vol/looptijd; niet spammen
+- [ ] Resource flush naar hubdorp
+  - Menu-optie om alle (of geselecteerde) dorpen in één keer leeg te trekken richting een gekozen hub.
+  - Blijf versturen totdat elke bron <5% van zijn opslag overhoudt.
+  - Bewaak kooplieden/afstanden en voorkom dat het hubdorp overloopt.
+- [ ] Stock equalizer
+  - Breng alle dorpen naar een gewenste voorraadpercentage (bv. 60%) zonder te wachten op overflow.
+  - Handig voor geplande bouwruns of trainingspushes.
+- [ ] Slimme bestemmingskeuze voor router
+  - Houd rekening met afstand, lopende projecten (settlers, bouw), en profielprioriteiten.
+  - Kies dichtbijgelegen dorpen boven verre targets om kooplieden efficiënter te benutten.
+- [ ] Router failover & alerts
+  - Detecteer wanneer meerdere router-runs niets versturen (geen kooplieden, geen ruimte).
+  - Log waarschuwingen of stuur optioneel een Discord-bericht voor handmatige opvolging.
 
 ### 4.1.1 Nieuw‑dorp preset (gerealiseerd)
 - [x] Standaard opbouwpreset (resources → infra → CP → militair → settlers → resources 5)

@@ -1,10 +1,23 @@
 import json
 import logging
 import random
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+
+try:
+    from config.config import settings
+except Exception:
+    class _Cfg:
+        FUNDAMENTAL_BUILDING_ENABLE = False
+        FUNDAMENTAL_OVERFLOW_THRESHOLD_PCT = 0.9
+        FUNDAMENTAL_MAIN_BUILDING_TARGET = 10
+        FUNDAMENTAL_BUILDING_COOLDOWN_SEC = 1800
+        FUNDAMENTAL_QUEUE_ALLOWANCE = 0
+
+    settings = _Cfg()
 
 from identity_handling.identity_helper import load_villages_from_identity
 from features.build import new_village_preset as preset
@@ -401,24 +414,65 @@ def _human_pause() -> None:
         time.sleep(0.5)
 
 
-def _parse_resource_bar(soup) -> dict[str, int]:
-    result = {rt: 0 for rt in RESOURCE_TYPES}
+def _upgrade_main_building_once(api) -> bool:
+    gid = getattr(preset, "BUILDING_GID", {}).get("main_building")
+    if not gid:
+        return False
+    try:
+        sid, level = preset._get_building_level_by_gid(api, gid)
+    except Exception:
+        sid, level = None, None
+    if sid is None:
+        try:
+            sid = preset._construct_building_if_missing(api, gid)
+        except Exception:
+            sid = None
+        if sid is None:
+            return False
+        return True
+    if level is None:
+        return False
+    try:
+        return preset._try_upgrade_with_guard(api, sid)
+    except Exception:
+        return False
+
+
+def _parse_resource_bar(soup) -> tuple[dict[str, int], dict[str, int]]:
+    current = {rt: 0 for rt in RESOURCE_TYPES}
+    capacities: dict[str, int] = {}
     mapping = {"wood": "l1", "clay": "l2", "iron": "l3", "crop": "l4"}
     for rtype, element_id in mapping.items():
         el = soup.find(id=element_id)
         if el is None:
             continue
         try:
-            result[rtype] = preset._sanitize_numeric(el.get_text())
+            current[rtype] = preset._sanitize_numeric(el.get_text())
         except Exception:
             continue
     free_crop_el = soup.find(id="stockBarFreeCrop")
     if free_crop_el is not None:
         try:
-            result["free_crop"] = preset._sanitize_numeric(free_crop_el.get_text())
+            current["free_crop"] = preset._sanitize_numeric(free_crop_el.get_text())
         except Exception:
-            result["free_crop"] = 0
-    return result
+            current["free_crop"] = 0
+    script = soup.find("script", string=re.compile(r"var\s+resources"))
+    if script and script.string:
+        text = script.string
+        for key, name in (("l1", "wood"), ("l2", "clay"), ("l3", "iron")):
+            m = re.search(rf"maxStorage\s*:\s*\{{[^}}]*\"{key}\"\s*:\s*(\d+)", text)
+            if m:
+                try:
+                    capacities[name] = int(m.group(1))
+                except Exception:
+                    continue
+        m_crop = re.search(r"maxCropStorage\s*:\s*(\d+)", text)
+        if m_crop:
+            try:
+                capacities["crop"] = int(m_crop.group(1))
+            except Exception:
+                pass
+    return current, capacities
 
 
 def _count_active_queue_items(soup) -> int:
@@ -444,15 +498,15 @@ def _count_active_queue_items(soup) -> int:
     return count
 
 
-def _load_village_state(api) -> tuple[dict[str, int], int]:
+def _load_village_state(api) -> tuple[dict[str, int], dict[str, int], int]:
     res = api.session.get(f"{api.server_url}/dorf1.php")
     res.raise_for_status()
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(res.text, "html.parser")
-    resources = _parse_resource_bar(soup)
+    resources, capacities = _parse_resource_bar(soup)
     queue_depth = _count_active_queue_items(soup)
-    return resources, queue_depth
+    return resources, capacities, queue_depth
 
 
 def _check_resource_buffer(
@@ -555,6 +609,119 @@ def _attempt_upgrade(
     return False, msg, resources
 
 
+def _run_fundamental_building_upgrades(
+    api,
+    entry: dict,
+    resources: Mapping[str, int],
+    capacities: Mapping[str, int],
+    queue_depth: int,
+    now: float,
+) -> tuple[list[tuple[bool, str]], bool]:
+    actions: list[tuple[bool, str]] = []
+    state_changed = False
+
+    enable = bool(getattr(settings, "FUNDAMENTAL_BUILDING_ENABLE", False))
+    if not enable:
+        return actions, state_changed
+
+    queue_allow = max(0, int(getattr(settings, "FUNDAMENTAL_QUEUE_ALLOWANCE", 0)))
+    if queue_depth > queue_allow:
+        logging.debug(
+            "[Fundamentals] Queue depth %s hoger dan allowance %s; geen upgrade.",
+            queue_depth,
+            queue_allow,
+        )
+        return actions, state_changed
+
+    cooldown = max(0, int(getattr(settings, "FUNDAMENTAL_BUILDING_COOLDOWN_SEC", 0)))
+    last_build_val = entry.get("last_building_upgrade_ts", entry.get("last_building_ts"))
+    last_build_ts = 0.0
+    try:
+        if last_build_val is not None:
+            last_build_ts = float(last_build_val)
+    except Exception:
+        last_build_ts = 0.0
+    if cooldown > 0 and last_build_ts > 0 and (now - last_build_ts) < cooldown:
+        logging.debug("[Fundamentals] Cooldown actief; geen upgrade.")
+        return actions, state_changed
+
+    try:
+        threshold = float(getattr(settings, "FUNDAMENTAL_OVERFLOW_THRESHOLD_PCT", 0.9))
+    except Exception:
+        threshold = 0.9
+    threshold = max(0.0, min(threshold, 0.99))
+
+    def _calc_ratio(keys: Iterable[str]) -> float:
+        ratios: list[float] = []
+        for key in keys:
+            cap = capacities.get(key)
+            if not cap or cap <= 0:
+                continue
+            cur = resources.get(key, 0)
+            try:
+                ratios.append(float(cur) / float(cap))
+            except Exception:
+                continue
+        return max(ratios) if ratios else -1.0
+
+    storage_candidates: list[tuple[str, float]] = []
+    if threshold > 0 and capacities:
+        warehouse_ratio = _calc_ratio(("wood", "clay", "iron"))
+        if warehouse_ratio >= threshold:
+            storage_candidates.append(("warehouse", warehouse_ratio))
+        granary_ratio = _calc_ratio(("crop",))
+        if granary_ratio >= threshold:
+            storage_candidates.append(("granary", granary_ratio))
+
+    storage_candidates.sort(key=lambda item: item[1], reverse=True)
+    for stype, ratio in storage_candidates:
+        pct = min(100, int(round(max(0.0, ratio) * 100)))
+        if stype == "warehouse":
+            ok = bool(preset._upgrade_warehouse_once(api))
+            label = "Pakhuis"
+        else:
+            ok = bool(preset._upgrade_granary_once(api))
+            label = "Graanschuur"
+        if ok:
+            ts = time.time()
+            entry["last_building_upgrade_ts"] = ts
+            entry.pop("last_building_ts", None)
+            actions.append((True, f"{label} upgrade gestart (opslag {pct}%)."))
+            state_changed = True
+            return actions, state_changed
+        logging.debug("[Fundamentals] %s-upgrade mislukt of overgeslagen (ratio %.2f).", stype, ratio)
+
+    try:
+        target_mb = int(getattr(settings, "FUNDAMENTAL_MAIN_BUILDING_TARGET", 10))
+    except Exception:
+        target_mb = 10
+    target_mb = max(0, target_mb)
+
+    if target_mb > 0:
+        gid = getattr(preset, "BUILDING_GID", {}).get("main_building")
+        level_before = None
+        if gid:
+            try:
+                _sid, level_before = preset._get_building_level_by_gid(api, gid)
+            except Exception:
+                level_before = None
+        if isinstance(level_before, (int, float)) and int(level_before) < target_mb:
+            ok = _upgrade_main_building_once(api)
+            if ok:
+                ts = time.time()
+                entry["last_building_upgrade_ts"] = ts
+                entry.pop("last_building_ts", None)
+                actions.append((True, f"Hoofdgebouw upgrade gestart (van level {int(level_before)})."))
+                state_changed = True
+            else:
+                logging.debug(
+                    "[Fundamentals] Hoofdgebouw-upgrade niet gestart (huidig level=%s).",
+                    level_before,
+                )
+
+    return actions, state_changed
+
+
 def run_resource_balancer_cycle(api, include_crop: bool = True) -> list[tuple[str, bool, str, str]]:
     registry = _load_profile_registry(include_crop)
     villages = load_villages_from_identity()
@@ -593,25 +760,13 @@ def run_resource_balancer_cycle(api, include_crop: bool = True) -> list[tuple[st
             continue
 
         state_key = str(village_id)
-        now = time.time()
-        last_info = runtime_state.get(state_key)
-        last_ts = 0.0
-        if isinstance(last_info, Mapping):
-            try:
-                last_ts = float(last_info.get("last_upgrade_ts", 0.0))
-            except Exception:
-                last_ts = 0.0
-        if profile.cooldown_seconds > 0 and last_ts > 0:
-            elapsed = now - last_ts
-            if elapsed < profile.cooldown_seconds:
-                remaining = profile.cooldown_seconds - elapsed
-                msg = f"Wachttijd actief; probeer later opnieuw ({_format_remaining(remaining)})."
-                prefixed = f"[{profile.name}] {msg}"
-                results.append((state_key, False, prefixed, village_name))
-                continue
+        entry = runtime_state.get(state_key)
+        if not isinstance(entry, dict):
+            entry = {}
+            runtime_state[state_key] = entry
 
         try:
-            resources, queue_depth = _load_village_state(api)
+            resources, capacities, queue_depth = _load_village_state(api)
         except Exception as exc:
             logging.warning(
                 "[ResourceBalancer] Kon dorf1 niet laden voor dorp %s: %s",
@@ -621,6 +776,24 @@ def run_resource_balancer_cycle(api, include_crop: bool = True) -> list[tuple[st
             results.append((str(village_id), False, "Kon dorpsoverzicht niet laden.", village_name))
             continue
 
+        now = time.time()
+        last_ts_val = entry.get("last_resource_upgrade_ts", entry.get("last_upgrade_ts"))
+        last_ts = 0.0
+        try:
+            if last_ts_val is not None:
+                last_ts = float(last_ts_val)
+        except Exception:
+            last_ts = 0.0
+
+        cooldown_active = False
+        if profile.cooldown_seconds > 0 and last_ts > 0:
+            elapsed = now - last_ts
+            if elapsed < profile.cooldown_seconds:
+                cooldown_active = True
+                remaining = profile.cooldown_seconds - elapsed
+                prefixed = f"[{profile.name}] Wachttijd actief; probeer later opnieuw ({_format_remaining(remaining)})."
+                results.append((state_key, False, prefixed, village_name))
+
         if queue_depth > profile.queue_allowance:
             results.append((
                 str(village_id),
@@ -628,45 +801,74 @@ def run_resource_balancer_cycle(api, include_crop: bool = True) -> list[tuple[st
                 "Bouwqueue actief; wacht totdat lopende upgrade klaar is.",
                 village_name,
             ))
-            continue
+            resource_attempted = False
+        else:
+            resource_attempted = not cooldown_active
 
         success = False
         message = "Geen upgrade uitgevoerd."
-        for attempt in range(profile.max_actions_per_cycle):
-            if attempt > 0:
-                try:
-                    resources, queue_depth = _load_village_state(api)
-                except Exception as exc:
-                    logging.warning(
-                        "[ResourceBalancer] Kon dorpsoverzicht niet verversen voor dorp %s: %s",
-                        village_id,
-                        exc,
-                    )
-                    message = (
-                        "Kon dorpsoverzicht niet verversen. "
-                        "Upgrade overgeslagen."
-                    )
+        if resource_attempted:
+            for attempt in range(profile.max_actions_per_cycle):
+                if attempt > 0:
+                    try:
+                        resources, capacities, queue_depth = _load_village_state(api)
+                    except Exception as exc:
+                        logging.warning(
+                            "[ResourceBalancer] Kon dorpsoverzicht niet verversen voor dorp %s: %s",
+                            village_id,
+                            exc,
+                        )
+                        message = (
+                            "Kon dorpsoverzicht niet verversen. "
+                            "Upgrade overgeslagen."
+                        )
+                        break
+                    if queue_depth > profile.queue_allowance:
+                        message = "Bouwqueue inmiddels gevuld; geen extra upgrade."
+                        break
+
+                ok, msg, resources = _attempt_upgrade(api, profile, resources)
+                message = msg
+                if ok:
+                    success = True
+                    ts = time.time()
+                    entry["last_resource_upgrade_ts"] = ts
+                    entry.pop("last_upgrade_ts", None)
+                    state_dirty = True
                     break
-                if queue_depth > profile.queue_allowance:
-                    message = "Bouwqueue inmiddels gevuld; geen extra upgrade."
+                lowered = msg.lower()
+                if any(keyword in lowered for keyword in ("queue", "buffer", "geen", "overgeslagen")):
                     break
 
-            ok, msg, resources = _attempt_upgrade(api, profile, resources)
-            message = msg
-            if ok:
-                success = True
-                runtime_state[state_key] = {"last_upgrade_ts": time.time()}
+            prefixed_message = f"[{profile.name}] {message}"
+            results.append((str(village_id), success, prefixed_message, village_name))
+            if success:
+                _human_pause()
+
+        # After resource balancing (or skip), attempt fundamental building upgrades
+        try:
+            resources, capacities, queue_depth = _load_village_state(api)
+        except Exception as exc:
+            logging.debug(
+                "[ResourceBalancer] Kon fundamentals niet evalueren voor dorp %s: %s",
+                village_id,
+                exc,
+            )
+        else:
+            actions, changed = _run_fundamental_building_upgrades(
+                api,
+                entry,
+                resources,
+                capacities,
+                queue_depth,
+                time.time(),
+            )
+            if changed:
                 state_dirty = True
-                break
-            # Abort further attempts if there is nothing meaningful left to try
-            lowered = msg.lower()
-            if any(keyword in lowered for keyword in ("queue", "buffer", "geen", "overgeslagen")):
-                break
-
-        if success:
-            _human_pause()
-        prefixed_message = f"[{profile.name}] {message}"
-        results.append((str(village_id), success, prefixed_message, village_name))
+            for ok_flag, msg in actions:
+                if ok_flag:
+                    _human_pause()
+                results.append((str(village_id), ok_flag, f"[fundamentals] {msg}", village_name))
 
     if state_dirty:
         _save_runtime_state(runtime_state)
