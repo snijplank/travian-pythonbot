@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 from bs4 import BeautifulSoup
 from pathlib import Path
+from requests import HTTPError
 
 @dataclass
 class HeroStatus:
@@ -27,6 +28,15 @@ class HeroStatus:
 class HeroManager:
     def __init__(self, api):
         self.api = api
+
+    def _refresh_session(self) -> bool:
+        """Best-effort ping to refresh cookies/session when HUD auth fails."""
+        try:
+            self.api.session.get(f"{self.api.server_url}/dorf1.php", timeout=10)
+            return True
+        except Exception as exc:
+            logging.debug(f"[Hero] Session refresh failed: {exc}")
+            return False
 
     def _is_known_village(self, village_id: str) -> bool:
         """Check if village_id exists in identity.json."""
@@ -66,10 +76,24 @@ class HeroManager:
     def fetch_hero_status(self) -> Optional[HeroStatus]:
         """Fetch hero status from the HUD API endpoint."""
         try:
+            url = f"{self.api.server_url}/api/v1/hero/dataForHUD"
             response = self.api.session.get(
-                f"{self.api.server_url}/api/v1/hero/dataForHUD",
+                url,
                 headers=self.api._headers_ajax("/hero"),
+                timeout=15,
             )
+            if response.status_code == 401:
+                logging.warning("[Hero] HUD request returned 401; refreshing session and retrying once.")
+                if self._refresh_session():
+                    response = self.api.session.get(
+                        url,
+                        headers=self.api._headers_ajax("/hero"),
+                        timeout=15,
+                    )
+                if response.status_code == 401:
+                    logging.warning("[Hero] HUD request still unauthorized after refresh. Skipping hero update this cycle.")
+                    return None
+
             response.raise_for_status()
             data = response.json()
             
@@ -112,6 +136,10 @@ class HeroManager:
                 experience_percent=data.get("experiencePercent")
             )
             
+        except HTTPError as e:
+            status = getattr(e.response, "status_code", "?")
+            logging.warning(f"Failed to fetch hero status (HTTP {status}): {e}")
+            return None
         except Exception as e:
             logging.error(f"Failed to fetch hero status: {e}")
             return None

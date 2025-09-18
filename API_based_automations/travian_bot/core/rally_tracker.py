@@ -93,12 +93,23 @@ def _schedule_immediate_retry(ls: LearningStore, target: str, *, village_id: Opt
     except Exception:
         interval = 600.0
 
+    try:
+        priority_window = float(getattr(settings, "LEARNING_PRIORITY_RETRY_SEC", 300.0))
+    except Exception:
+        priority_window = 300.0
+
     now = time.time()
     try:
         offset = interval if interval > 0 else 60.0
         ls.set_last_sent(norm_target, ts=now - offset - 1.0)
     except Exception as exc:  # pragma: no cover - defensive logging only
         LOG.debug("[RallyTracker] Failed to mark %s due immediately: %s", norm_target, exc)
+
+    if priority_window > 0:
+        try:
+            ls.set_priority(norm_target, priority_window)
+        except Exception as exc:
+            LOG.debug("[RallyTracker] Failed to mark %s priority: %s", norm_target, exc)
 
     try:
         hint_path = Path("database/runtime_next_oasis_due.json")
@@ -340,6 +351,17 @@ def process_pending_returns(api, *, verbose: bool = False) -> int:
             source = str(item.get("source") or (item.get("meta", {}) if isinstance(item.get("meta"), dict) else {}).get("source") or "oasis").lower()
             if info.get("carry_full") and source == "oasis":
                 _schedule_immediate_retry(ls, match.target, village_id=village_id)
+            pause_until = info.get("pause_until")
+            if pause_until:
+                try:
+                    remain = max(0.0, float(pause_until) - time.time())
+                    logging.info(
+                        "[RallyTracker] Paused %s for %.1f minute(s) after losses.",
+                        match.target,
+                        remain / 60.0,
+                    )
+                except Exception:
+                    logging.info("[RallyTracker] Paused %s after losses.", match.target)
             match._matched = True  # mark for future filtering
             continue
         expected = item.get("expected_return_epoch")
@@ -460,38 +482,29 @@ def _apply_learning(ls: LearningStore, item: Dict[str, Any], entry: RallyReturn,
 
     current = float(ls.get_multiplier(key))
     direction = None
-    if result == "lost" or returned <= 0:
-        direction = "up"
-        m = ls.nudge_multiplier(
-            key,
-            "up",
-            step=float(getattr(settings, "LEARNING_STEP_UP_ON_LOST", 0.25)),
-            min_mul=float(getattr(settings, "LEARNING_MIN_MUL", 0.8)),
-            max_mul=float(getattr(settings, "LEARNING_MAX_MUL", 2.5)),
-        )
-    else:
-        low = float(getattr(settings, "LEARNING_LOSS_THRESHOLD_LOW", 0.20))
-        high = float(getattr(settings, "LEARNING_LOSS_THRESHOLD_HIGH", 0.50))
-        if loss_pct <= low:
-            direction = "down"
-            m = ls.nudge_multiplier(
-                key,
-                "down",
-                step=float(getattr(settings, "LEARNING_STEP_DOWN_ON_LOW_LOSS", 0.10)),
-                min_mul=float(getattr(settings, "LEARNING_MIN_MUL", 0.8)),
-                max_mul=float(getattr(settings, "LEARNING_MAX_MUL", 2.5)),
-            )
-        elif loss_pct >= high:
+    pause_seconds = float(getattr(settings, "LEARNING_PAUSE_ON_LOSS_SEC", 3600.0))
+    if loss_pct > 0.0:
+        direction = None
+        m = current
+        if pause_seconds > 0:
+            ls.set_pause(key, pause_seconds)
+    elif entry.carry_full:
+        step_full = float(getattr(settings, "LEARNING_STEP_UP_ON_FULL_LOOT", 1.0))
+        if step_full > 0.0:
             direction = "up"
             m = ls.nudge_multiplier(
                 key,
                 "up",
-                step=float(getattr(settings, "LEARNING_STEP_UP_ON_HIGH_LOSS", 0.10)),
+                step=step_full,
                 min_mul=float(getattr(settings, "LEARNING_MIN_MUL", 0.8)),
                 max_mul=float(getattr(settings, "LEARNING_MAX_MUL", 2.5)),
             )
         else:
             m = current
+        ls.clear_pause(key)
+    else:
+        m = current
+        ls.clear_pause(key)
 
     if direction:
         add_learning_change(key, old=current, new=m, direction=direction, loss_pct=loss_pct)
@@ -504,6 +517,12 @@ def _apply_learning(ls: LearningStore, item: Dict[str, Any], entry: RallyReturn,
         "carry_full": entry.carry_full,
         "multiplier": m,
     }
+    pause_until = ls.get_pause_until(key)
+    if pause_until is not None:
+        info["pause_until"] = float(pause_until)
+    priority_until = ls.get_priority_until(key)
+    if priority_until is not None:
+        info["priority_until"] = float(priority_until)
     return info
 
 

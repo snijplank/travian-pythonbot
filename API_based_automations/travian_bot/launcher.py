@@ -942,7 +942,10 @@ def main():
 
                 fl_enabled = _cfg_bool('FARM_LIST_RAIDER_ENABLE', legacy='FARM_LISTS_ENABLE', default=True)
                 empty_oasis_enabled = _cfg_bool('EMPTY_OASIS_RAIDER_ENABLE', legacy='ENABLE_EMPTY_OASIS_RAIDER', default=True)
+                learning_enabled = bool(getattr(settings, 'LEARNING_ENABLE', True))
 
+                if empty_oasis_enabled and learning_enabled:
+                    run_empty_oasis_raids(api, server_url, multi_village=True, priority_only=True)
                 if fl_enabled:
                     # first-cycle skip honored if configured
                     if not (first_cycle and skip_farm_lists_first_run):

@@ -86,6 +86,10 @@ class LearningStore:
         s["last_ts"] = now
         s["last_result"] = result
         s["last_loss_pct"] = loss_pct
+        # Clear pause marker on successful attack unless explicitly maintained
+        if result in ("won", "accepted"):
+            s.pop("pause_until", None)
+            s.pop("priority_until", None)
         # Append to short rolling history for baseline decisions
         hist = s.setdefault("history", [])
         hist.append({
@@ -141,6 +145,60 @@ class LearningStore:
         self._save()
         return m
 
+    def set_pause(self, key: str, seconds: float) -> None:
+        try:
+            k = self._normalize_key(key) or key
+            s = self.data.setdefault(k, {"multiplier": 1.0})
+            s["pause_until"] = float(time.time() + max(0.0, seconds))
+            self._save()
+        except Exception:
+            pass
+
+    def clear_pause(self, key: str) -> None:
+        try:
+            k = self._normalize_key(key) or key
+            entry = self.data.get(k)
+            if isinstance(entry, dict) and "pause_until" in entry:
+                entry.pop("pause_until", None)
+                self._save()
+        except Exception:
+            pass
+
+    def get_pause_until(self, key: str) -> Optional[float]:
+        try:
+            k = self._normalize_key(key) or key
+            v = self.data.get(k, {}).get("pause_until")
+            return float(v) if v is not None else None
+        except Exception:
+            return None
+
+    def set_priority(self, key: str, seconds: float) -> None:
+        try:
+            k = self._normalize_key(key) or key
+            s = self.data.setdefault(k, {"multiplier": 1.0})
+            s["priority_until"] = float(time.time() + max(0.0, seconds))
+            self._save()
+        except Exception:
+            pass
+
+    def clear_priority(self, key: str) -> None:
+        try:
+            k = self._normalize_key(key) or key
+            entry = self.data.get(k)
+            if isinstance(entry, dict) and "priority_until" in entry:
+                entry.pop("priority_until", None)
+                self._save()
+        except Exception:
+            pass
+
+    def get_priority_until(self, key: str) -> Optional[float]:
+        try:
+            k = self._normalize_key(key) or key
+            v = self.data.get(k, {}).get("priority_until")
+            return float(v) if v is not None else None
+        except Exception:
+            return None
+
     def get_baseline(self, key: str) -> dict:
         """Return a baseline snapshot for a raid target key '(x,y)'.
 
@@ -159,6 +217,12 @@ class LearningStore:
             "last_loss_pct": s.get("last_loss_pct"),
             "avg_loss_pct": s.get("avg_loss_pct"),
         }
+        pause_until = s.get("pause_until")
+        if pause_until is not None:
+            out["pause_until"] = float(pause_until)
+        priority_until = s.get("priority_until")
+        if priority_until is not None:
+            out["priority_until"] = float(priority_until)
         try:
             agg = s.get("total_loot", {}) or {}
             out["total_loot_total"] = int(agg.get("total", 0))

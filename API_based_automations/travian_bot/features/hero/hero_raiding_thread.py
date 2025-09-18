@@ -1,12 +1,36 @@
 import time
 import random
 import threading
-from datetime import datetime
+from datetime import datetime, time as dtime, timedelta
 from core.hero_manager import HeroManager
 from core.database_helpers import load_latest_unoccupied_oases
 from core.hero_runner import try_send_hero_to_oasis
 from identity_handling.identity_helper import load_villages_from_identity
 from core.console import CONSOLE_LOCK, print_line
+
+
+def _parse_quiet_windows(raw) -> list[tuple[dtime, dtime]]:
+    windows: list[tuple[dtime, dtime]] = []
+    for window in (raw or []):
+        try:
+            start_txt, end_txt = [p.strip() for p in str(window).split('-')]
+            sh, sm = [int(x) for x in start_txt.split(':')]
+            eh, em = [int(x) for x in end_txt.split(':')]
+            windows.append((dtime(sh, sm), dtime(eh, em)))
+        except Exception:
+            continue
+    return windows
+
+
+def _remaining_quiet(now: datetime, windows: list[tuple[dtime, dtime]]) -> timedelta | None:
+    for start_t, end_t in windows:
+        start = now.replace(hour=start_t.hour, minute=start_t.minute, second=0, microsecond=0)
+        end = now.replace(hour=end_t.hour, minute=end_t.minute, second=0, microsecond=0)
+        if end <= start:
+            end += timedelta(days=1)
+        if start <= now < end:
+            return end - now
+    return None
 
 def _ts() -> str:
     try:
@@ -22,6 +46,8 @@ def safe_print(message):
 
 def run_hero_raiding_thread(api):
     """Background thread for adaptive hero raiding."""
+    quiet_windows: list[tuple[dtime, dtime]] = []
+    jitter_min = jitter_max = 0.0
     # Early exit if disabled in config (supports nested raiding section)
     try:
         from config.config import settings as _cfg
@@ -61,6 +87,14 @@ def run_hero_raiding_thread(api):
         if not _cfg_bool('HERO_OASIS_CLEAR_ENABLE', legacy='ENABLE_HERO_OASIS_CLEAR', default=True):
             safe_print("[HeroOasisClear] Disabled via config; exiting thread.")
             return
+        quiet_windows = _parse_quiet_windows(getattr(_cfg, 'QUIET_WINDOWS', []) or [])
+        try:
+            jitter_min = float(getattr(_cfg, 'QUIET_WINDOW_RESUME_JITTER_MIN', 60.0))
+            jitter_max = float(getattr(_cfg, 'QUIET_WINDOW_RESUME_JITTER_MAX', 240.0))
+            if jitter_max < jitter_min:
+                jitter_min, jitter_max = jitter_max, jitter_min
+        except Exception:
+            jitter_min = jitter_max = 0.0
     except Exception:
         pass
     safe_print("[HeroOasisClear] Hero raiding thread started.")
@@ -72,6 +106,19 @@ def run_hero_raiding_thread(api):
 
     while True:
         try:
+            try:
+                if quiet_windows:
+                    remain = _remaining_quiet(datetime.now(), quiet_windows)
+                    if remain:
+                        jitter = 0.0
+                        if jitter_max > 0:
+                            jitter = random.uniform(jitter_min, jitter_max)
+                        wait_time = max(30, int(remain.total_seconds() + jitter))
+                        safe_print(f"[HeroOasisClear] 💤 Quiet window active. Sleeping {wait_time} seconds before next hero check...")
+                        time.sleep(wait_time)
+                        continue
+            except Exception:
+                pass
             safe_print("[HeroOasisClear] Checking hero status...")
             hero_manager = HeroManager(api)
             status = hero_manager.fetch_hero_status()

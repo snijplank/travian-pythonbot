@@ -37,7 +37,8 @@ SECTIONS = {
     "learning": [
         "LEARNING_MIN_MUL", "LEARNING_MAX_MUL", "LEARNING_LOSS_THRESHOLD_LOW",
         "LEARNING_LOSS_THRESHOLD_HIGH", "LEARNING_STEP_UP_ON_LOST",
-        "LEARNING_STEP_UP_ON_HIGH_LOSS", "LEARNING_STEP_DOWN_ON_LOW_LOSS",
+        "LEARNING_STEP_UP_ON_HIGH_LOSS", "LEARNING_STEP_UP_ON_FULL_LOOT",
+        "LEARNING_PAUSE_ON_LOSS_SEC", "LEARNING_PRIORITY_RETRY_SEC",
     ],
     "credentials": [
         "TRAVIAN_EMAIL", "TRAVIAN_PASSWORD",
@@ -99,4 +100,3 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

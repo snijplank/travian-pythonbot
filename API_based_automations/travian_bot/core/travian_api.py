@@ -2,6 +2,7 @@ import requests
 import re
 import random
 import time
+from datetime import datetime, time as dtime, timedelta
 from bs4 import BeautifulSoup
 from analysis.animal_to_power_mapping import get_animal_power
 from core.unit_catalog import resolve_unit_base_name, resolve_label_u
@@ -37,6 +38,15 @@ class TravianAPI:
                 self._idle_pages = [str(p).strip() for p in pages if str(p).strip()]
             else:
                 self._idle_pages = []
+            self._quiet_windows = []
+            for window in (getattr(_cfg, 'QUIET_WINDOWS', []) or []):
+                try:
+                    start_txt, end_txt = [p.strip() for p in str(window).split('-')]
+                    sh, sm = [int(x) for x in start_txt.split(':')]
+                    eh, em = [int(x) for x in end_txt.split(':')]
+                    self._quiet_windows.append((dtime(sh, sm), dtime(eh, em)))
+                except Exception:
+                    continue
             self._x_version = str(getattr(_cfg, 'TRAVIAN_X_VERSION', '') or '').strip()
         except Exception:
             self._human_min, self._human_max = 0.6, 2.2
@@ -47,6 +57,7 @@ class TravianAPI:
             self._idle_jitter_min, self._idle_jitter_max = 0.4, 1.3
             self._suspicion_sleep_min, self._suspicion_sleep_max = 90.0, 240.0
             self._idle_pages = []
+            self._quiet_windows = []
             self._x_version = ''
         if not self._idle_pages:
             self._idle_pages = [
@@ -142,8 +153,23 @@ class TravianAPI:
         except Exception:
             self._idle_next_ts = float("inf")
 
+    def _in_quiet_window_now(self) -> bool:
+        if not getattr(self, "_quiet_windows", None):
+            return False
+        now = datetime.now()
+        for start_t, end_t in self._quiet_windows:
+            start = now.replace(hour=start_t.hour, minute=start_t.minute, second=0, microsecond=0)
+            end = now.replace(hour=end_t.hour, minute=end_t.minute, second=0, microsecond=0)
+            if end <= start:
+                end += timedelta(days=1)
+            if start <= now < end:
+                return True
+        return False
+
     def _maybe_idle_browse(self) -> None:
         if not self._idle_pages or self._idle_prob <= 0:
+            return
+        if self._in_quiet_window_now():
             return
         now = time.time()
         if now < getattr(self, "_idle_next_ts", 0.0):

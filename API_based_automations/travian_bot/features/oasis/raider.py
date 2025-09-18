@@ -38,7 +38,7 @@ def get_range_index_for_distance(distance, distance_ranges):
             continue
     return -1
 
-def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=False, hero_available=False):
+def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=False, hero_available=False, priority_only: bool = False):
     """
     Execute a batch of raids on oases based on the raid plan.
     
@@ -149,10 +149,30 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
 
     now = time.time()
     sched = []
+    def _min_required_for_unit(unit_code: str, group: int, base_group: int) -> int:
+        norm = u_to_t(unit_code) or unit_code
+        if norm == "t1" and group < 2:
+            target = max(2, base_group)
+            return target
+        return group
+
     for coords, tile in oases.items():
         x_str, y_str = coords.split("_")
         x_i, y_i = int(x_str), int(y_str)
         key = f"({x_i},{y_i})"
+        pause_until = ls.get_pause_until(key) if ls else None
+        priority_until = ls.get_priority_until(key) if ls else None
+        if priority_only:
+            if not priority_until or float(priority_until) <= now:
+                continue
+        if pause_until and float(pause_until) > now:
+            try:
+                remain = max(0, float(pause_until) - now)
+                logging.info(
+                    f"[Oasis] Paused target {key} for another {remain/60:.1f} minute(s); skipping.")
+            except Exception:
+                logging.info(f"[Oasis] Paused target {key}; skipping.")
+            continue
         # Ensure numeric distance for sorting
         try:
             dist = float(tile.get("distance", float("inf")))
@@ -379,13 +399,14 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
             except Exception:
                 pass
         base_total = sum(int(u.get("group_size", 0)) for u in units)
-        # Adjust per-unit composition with multiplier, minimum 1 if base > 0
+        # Adjust per-unit composition with multiplier, enforce floors per unit type
         adjusted_units = []
         for u in units:
             base_g = int(u.get("group_size", 0))
             adj_g = int(round(base_g * mul)) if base_g > 0 else 0
             if base_g > 0 and adj_g <= 0:
                 adj_g = 1
+            adj_g = _min_required_for_unit(u["unit_code"], adj_g, base_g)
             adjusted_units.append({"unit_code": u["unit_code"], "base_group": base_g, "adj_group": adj_g})
 
         # Check if we have enough troops for adjusted combination
@@ -433,6 +454,7 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
                             adj_g = int(round(base_g * mul)) if base_g > 0 else 0
                             if base_g > 0 and adj_g <= 0:
                                 adj_g = 1
+                            adj_g = _min_required_for_unit(u['unit_code'], adj_g, base_g)
                             next_adjusted.append({"unit_code": u['unit_code'], "base_group": base_g, "adj_group": adj_g})
                         # Check availability for promotion composition
                         can_promote = True
@@ -506,6 +528,10 @@ def run_raid_batch(api, raid_plan, faction, village_id, oases, hero_raiding=Fals
             # Record last sent timestamp for scheduler (independent of learning)
             try:
                 ls.set_last_sent(key)
+            except Exception:
+                pass
+            try:
+                ls.clear_priority(key)
             except Exception:
                 pass
             # Log één pending entry voor deze raid zodat de report checker de multiplier kan bijstellen.
